@@ -1,0 +1,1 @@
+import{cr as e,lr as t}from"./monaco-editor-DrD7UZce.js";export{e as conf,t as language};

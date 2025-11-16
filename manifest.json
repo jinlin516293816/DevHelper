@@ -1,0 +1,68 @@
+{
+  "manifest_version": 3,
+  "name": "DevHelper",
+  "version": "1.0.0",
+  "description": "开发辅助工具 - JSON格式化、文件对比、正则表达式速查等实用工具集合",
+  "author": "DevHelper Team",
+  "homepage_url": "https://github.com/jinlin516293816/DevHelper",
+  "permissions": [
+    "tabs",
+    "storage",
+    "contextMenus",
+    "webRequest"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "DevHelper - 开发辅助工具",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "json-format/*",
+        "file-compare/*",
+        "regex-tools/*"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "commands": {
+    "open_json_formatter": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+J",
+        "mac": "Command+Shift+J"
+      },
+      "description": "打开JSON格式化工具"
+    },
+    "open_file_compare": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+C",
+        "mac": "Command+Shift+C"
+      },
+      "description": "打开文件对比工具"
+    }
+  },
+  "options_page": "popup.html"
+}
