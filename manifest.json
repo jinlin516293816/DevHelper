@@ -38,7 +38,8 @@
       "resources": [
         "json-format/*",
         "file-compare/*",
-        "regex-tools/*"
+        "regex-tools/*",
+        "colors/*"
       ],
       "matches": ["<all_urls>"]
     }

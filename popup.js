@@ -97,6 +97,28 @@ function openRegexTools() {
   }
 }
 
+// 打开颜色工具
+function openColorTools() {
+  showStatus('正在打开颜色工具...');
+  
+  try {
+    // 在新标签页中打开颜色工具
+    chrome.tabs.create({
+      url: chrome.runtime.getURL('color-tools/index.html'),
+      active: true
+    }, (tab) => {
+      if (tab) {
+        showStatus('颜色工具已打开');
+      } else {
+        showStatus('打开失败，请重试');
+      }
+    });
+  } catch (error) {
+    showStatus('打开失败: ' + error.message);
+    console.error('打开颜色工具失败:', error);
+  }
+}
+
 // 事件监听
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('openJsonFormatter').addEventListener('click', openJsonFormatter);
