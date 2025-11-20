@@ -77,6 +77,33 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   }
 });
 
+// 监听键盘快捷键命令
+chrome.commands.onCommand.addListener((command) => {
+  switch (command) {
+    case 'open_json_formatter':
+      // 在新标签页中打开JSON格式化工具
+      chrome.tabs.create({
+        url: chrome.runtime.getURL('json-format/index.html'),
+        active: true
+      });
+      break;
+    case 'open_file_compare':
+      // 在新标签页中打开文件对比工具
+      chrome.tabs.create({
+        url: chrome.runtime.getURL('file-compare/index.html'),
+        active: true
+      });
+      break;
+    case 'open_color_tools':
+      // 在新标签页中打开颜色工具
+      chrome.tabs.create({
+        url: chrome.runtime.getURL('colors/index.html'),
+        active: true
+      });
+      break;
+  }
+});
+
 // 设置网络请求监听器
 function setupNetworkListeners() {
   // 监听网络请求

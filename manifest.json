@@ -66,6 +66,13 @@
         "mac": "Command+Shift+C"
       },
       "description": "打开文件对比工具"
+    },
+    "open_color_tools": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+E",
+        "mac": "Command+Shift+E"
+      },
+      "description": "打开颜色提取工具"
     }
   },
   "options_page": "popup.html"
