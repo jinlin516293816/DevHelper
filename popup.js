@@ -104,7 +104,7 @@ function openColorTools() {
   try {
     // 在新标签页中打开颜色工具
     chrome.tabs.create({
-      url: chrome.runtime.getURL('color-tools/index.html'),
+      url: chrome.runtime.getURL('colors/index.html'),
       active: true
     }, (tab) => {
       if (tab) {
@@ -124,4 +124,5 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('openJsonFormatter').addEventListener('click', openJsonFormatter);
   document.getElementById('openFileCompare').addEventListener('click', openFileCompare);
   document.getElementById('openRegexTools').addEventListener('click', openRegexTools);
+  document.getElementById('openColorTools').addEventListener('click', openColorTools);
 });
