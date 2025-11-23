@@ -115,7 +115,7 @@ function showShortcuts(toolName) {
     
     const shortcut = shortcuts[toolName];
     if (shortcut) {
-        showNotification(`快捷键提示：${shortcut}`, 'info');
+        // showNotification(`快捷键提示：${shortcut}`, 'info');
     }
 }
 
