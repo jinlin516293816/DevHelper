@@ -119,10 +119,33 @@ function openColorTools() {
   }
 }
 
+// 打开Mock工具
+function openMockTool() {
+  showStatus('正在打开Mock工具...');
+  
+  try {
+    // 在新标签页中打开Mock工具
+    chrome.tabs.create({
+      url: chrome.runtime.getURL('mock/dist/index.html'),
+      active: true
+    }, (tab) => {
+      if (tab) {
+        showStatus('Mock工具已打开');
+      } else {
+        showStatus('打开失败，请重试');
+      }
+    });
+  } catch (error) {
+    showStatus('打开失败: ' + error.message);
+    console.error('打开Mock工具失败:', error);
+  }
+}
+
 // 事件监听
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('openJsonFormatter').addEventListener('click', openJsonFormatter);
   document.getElementById('openFileCompare').addEventListener('click', openFileCompare);
   document.getElementById('openRegexTools').addEventListener('click', openRegexTools);
   document.getElementById('openColorTools').addEventListener('click', openColorTools);
+  document.getElementById('openMockTool').addEventListener('click', openMockTool);
 });
