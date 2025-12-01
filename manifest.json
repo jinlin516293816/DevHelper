@@ -4,12 +4,14 @@
   "version": "1.1.1",
   "description": "开发辅助工具 - JSON格式化、文件对比、正则表达式速查、颜色提取等实用工具集合",
   "author": "DevHelper Team",
-  "homepage_url": "https://github.com/jinlin516293816/DevHelper",
+  "homepage_url": "https://jinlin516293816.github.io/DevHelper/",
   "permissions": [
     "tabs",
     "storage",
     "contextMenus",
-    "webRequest"
+    "webRequest",
+    "webRequestBlocking",
+    "runtime"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -30,7 +32,7 @@
     {
       "matches": ["<all_urls>"],
       "js": ["content.js"],
-      "run_at": "document_end"
+      "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
@@ -42,7 +44,11 @@
         "file-compare/assets/*",
         "regex-tools/*",
         "colors/*",
-        "colors/assets/*"
+        "colors/assets/*",
+        "mock/*",
+        "mock/dist/*",
+        "mock/dist/assets/*",
+        "injected.js"
       ],
       "matches": ["<all_urls>"]
     }
@@ -73,6 +79,13 @@
         "mac": "Command+Shift+E"
       },
       "description": "打开颜色提取工具"
+    },
+    "open_mock_tool": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+M",
+        "mac": "Command+Shift+M"
+      },
+      "description": "打开Mock工具"
     }
   },
   "options_page": "popup.html"
