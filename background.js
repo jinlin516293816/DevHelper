@@ -1,6 +1,6 @@
 // background.js - 浏览器插件的后台服务脚本
 
-console.log('DevHelper 后台服务已启动');
+
 
 // 创建右键菜单
 function createContextMenus() {
@@ -54,7 +54,9 @@ const defaultSettings = {
   highlightTimeout: 3000,
   logLevel: 'info',
   mockEnabled: false,
-  enableRequestLogging: true // 添加请求日志开关
+  enableRequestLogging: true, // 添加请求日志开关
+  urlRestrictionEnabled: false, // 是否启用网址限制
+  allowedUrls: '' // 允许的网址列表，多个以逗号分隔
 };
 
 // 当前设置
@@ -62,7 +64,7 @@ let settings = defaultSettings;
 
 // 初始化设置
 chrome.runtime.onInstalled.addListener((details) => {
-  console.log('DevHelper 插件已安装/更新:', details.reason);
+
   
   // 初始化存储设置
   if (typeof chrome !== 'undefined' && chrome.storage) {
@@ -210,31 +212,37 @@ function setupNetworkListeners() {
   // 监听网络请求（用于捕获和Mock）
   chrome.webRequest.onBeforeRequest.addListener(
     (details) => {
-      // 捕获请求
-      if (networkCaptureActive) {
-        capturedRequests.push({
-          url: details.url,
-          method: details.method,
-          type: details.type,
-          timestamp: Date.now()
-        });
-        
-        // 限制捕获的请求数量，避免内存溢出
-        if (capturedRequests.length > 1000) {
-          capturedRequests.shift();
-        }
-      }
+      // 检查URL是否允许
+      const urlAllowed = isUrlAllowed(details.url);
       
-      // Mock拦截逻辑
-      if (mockEnabled) {
-        const mockRule = findMatchingMockRule(details.url, details.method);
-        if (mockRule) {
-          console.log('匹配到Mock规则:', mockRule.name, 'URL:', details.url);
+      // 只有允许的URL才执行捕获和Mock拦截
+      if (urlAllowed) {
+        // 捕获请求
+        if (networkCaptureActive) {
+          capturedRequests.push({
+            url: details.url,
+            method: details.method,
+            type: details.type,
+            timestamp: Date.now()
+          });
           
-          // 阻止原始请求，返回Mock数据
-          return {
-            redirectUrl: `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(mockRule.response))}`
-          };
+          // 限制捕获的请求数量，避免内存溢出
+          if (capturedRequests.length > 1000) {
+            capturedRequests.shift();
+          }
+        }
+        
+        // Mock拦截逻辑
+        if (mockEnabled) {
+          const mockRule = findMatchingMockRule(details.url, details.method);
+          if (mockRule) {
+            console.log('匹配到Mock规则:', mockRule.name, 'URL:', details.url);
+            
+            // 阻止原始请求，返回Mock数据
+            return {
+              redirectUrl: `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(mockRule.response))}`
+            };
+          }
         }
       }
     },
@@ -260,6 +268,31 @@ function setupNetworkListeners() {
     { urls: ['<all_urls>'] },
     ['responseHeaders']
   );
+}
+
+// 检查URL是否在允许的列表中
+function isUrlAllowed(url) {
+  // 如果未启用网址限制，则允许所有URL
+  if (!settings.urlRestrictionEnabled) {
+    return true;
+  }
+  
+  // 如果允许的网址列表为空，则不允许任何URL
+  if (!settings.allowedUrls || settings.allowedUrls.trim() === '') {
+    return false;
+  }
+  
+  // 将允许的网址列表分割为数组
+  const allowedUrlsArray = settings.allowedUrls.split(',').map(url => url.trim()).filter(url => url !== '');
+  
+  // 检查URL是否与任何允许的网址匹配（模糊匹配）
+  for (const allowedUrl of allowedUrlsArray) {
+    if (url.includes(allowedUrl)) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 // 查找匹配的Mock规则 - 与injected.js保持一致的匹配逻辑
@@ -332,7 +365,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // 支持的action列表
   const supportedActions = ['startNetworkCapture', 'stopNetworkCapture', 'getCapturedRequests', 'pageLoaded', 
                           'getSettings', 'updateSettings', 'getMockRules', 'updateMockRules', 
-                          'toggleMock', 'openMockTool', 'injectCss', 'removeCss'];
+                          'toggleMock', 'openMockTool', 'injectCss', 'removeCss', 'injectJs', 'removeJs'];
   
   switch (message.action) {
     case 'startNetworkCapture':
@@ -625,17 +658,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (tabs.length > 0) {
           chrome.tabs.sendMessage(tabs[0].id, message, (response) => {
             if (chrome.runtime.lastError) {
-              console.error('发送CSS注入命令失败:', chrome.runtime.lastError);
+              console.error('发送消息到content script失败:', chrome.runtime.lastError);
               sendResponse({ 
                 success: false, 
-                error: `发送CSS注入命令失败: ${chrome.runtime.lastError.message}`
+                error: `Failed to send message to content script: ${chrome.runtime.lastError.message}`
               });
             } else {
               sendResponse(response);
             }
           });
         } else {
-          sendResponse({ success: false, error: '未找到活动标签页' });
+          sendResponse({ success: false, error: 'No active tab found' });
         }
       });
       return true;
@@ -646,17 +679,59 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (tabs.length > 0) {
           chrome.tabs.sendMessage(tabs[0].id, message, (response) => {
             if (chrome.runtime.lastError) {
-              console.error('发送CSS移除命令失败:', chrome.runtime.lastError);
+              console.error('发送消息到content script失败:', chrome.runtime.lastError);
               sendResponse({ 
                 success: false, 
-                error: `发送CSS移除命令失败: ${chrome.runtime.lastError.message}`
+                error: `Failed to send message to content script: ${chrome.runtime.lastError.message}`
               });
             } else {
               sendResponse(response);
             }
           });
         } else {
-          sendResponse({ success: false, error: '未找到活动标签页' });
+          sendResponse({ success: false, error: 'No active tab found' });
+        }
+      });
+      return true;
+      
+    case 'injectJs':
+      // 注入JS到当前活动标签页
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs.length > 0) {
+          chrome.tabs.sendMessage(tabs[0].id, message, (response) => {
+            if (chrome.runtime.lastError) {
+              console.error('发送消息到content script失败:', chrome.runtime.lastError);
+              sendResponse({ 
+                success: false, 
+                error: `Failed to send message to content script: ${chrome.runtime.lastError.message}`
+              });
+            } else {
+              sendResponse(response);
+            }
+          });
+        } else {
+          sendResponse({ success: false, error: 'No active tab found' });
+        }
+      });
+      return true;
+      
+    case 'removeJs':
+      // 从当前活动标签页移除JS
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs.length > 0) {
+          chrome.tabs.sendMessage(tabs[0].id, message, (response) => {
+            if (chrome.runtime.lastError) {
+              console.error('发送消息到content script失败:', chrome.runtime.lastError);
+              sendResponse({ 
+                success: false, 
+                error: `Failed to send message to content script: ${chrome.runtime.lastError.message}`
+              });
+            } else {
+              sendResponse(response);
+            }
+          });
+        } else {
+          sendResponse({ success: false, error: 'No active tab found' });
         }
       });
       return true;

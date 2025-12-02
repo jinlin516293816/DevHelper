@@ -1,7 +1,5 @@
 // injected.js - 注入到页面上下文的脚本，用于拦截网络请求
 
-console.log('DevHelper 注入脚本已加载');
-
 // 保存原始方法的引用
 const originalFetch = window.fetch;
 const originalXHROpen = XMLHttpRequest.prototype.open;
@@ -14,9 +12,39 @@ let requestInterceptors = [];
 // Mock开关状态，默认值为true，会被content script注入后立即更新
 let isMockEnabled = true;
 
+// 网址限制相关
+let urlRestrictionEnabled = false;
+let allowedUrls = [];
+
 // CSS注入相关
 let injectedStyle = null;
 let injectedCssContent = '';
+
+// JS注入相关
+let injectedScript = null;
+let injectedJsContent = '';
+
+// 检查URL是否允许
+function isUrlAllowed(url) {
+  // 如果没有启用URL限制，则允许所有URL
+  if (!urlRestrictionEnabled) {
+    return true;
+  }
+  
+  // 如果没有配置允许的URL，则不允许任何URL
+  if (!allowedUrls || allowedUrls.length === 0) {
+    return false;
+  }
+  
+  // 检查URL是否匹配任何允许的URL
+  for (const allowedUrl of allowedUrls) {
+    if (url.includes(allowedUrl.trim())) {
+      return true;
+    }
+  }
+  
+  return false;
+}
 
 // 从content script接收消息
 window.addEventListener('message', (event) => {
@@ -29,19 +57,25 @@ window.addEventListener('message', (event) => {
   
   if (data.action === 'updateMockRules') {
     mockRules = data.rules || [];
-    console.log('已更新Mock规则，当前规则数量:', mockRules.length);
   } else if (data.action === 'updateRequestInterceptors') {
     requestInterceptors = data.interceptors || [];
-    console.log('已更新请求前拦截器，当前拦截器数量:', requestInterceptors.length);
   } else if (data.action === 'toggleMock') {
     isMockEnabled = data.enabled;
-    console.log('Mock功能已' + (isMockEnabled ? '启用' : '禁用'));
+  } else if (data.action === 'updateUrlRestriction') {
+    urlRestrictionEnabled = data.enabled;
+    allowedUrls = data.allowedUrls || [];
   } else if (data.action === 'injectCss') {
     // 注入CSS
     injectCss(data.css);
   } else if (data.action === 'removeCss') {
     // 移除CSS
     removeCss();
+  } else if (data.action === 'injectJs') {
+    // 注入JS
+    injectJs(data.js);
+  } else if (data.action === 'removeJs') {
+    // 移除JS
+    removeJs();
   }
 });
 
@@ -64,7 +98,6 @@ function injectCss(css) {
   (document.head || document.documentElement).appendChild(injectedStyle);
   
   injectedCssContent = css;
-  console.log('DevHelper: CSS已成功注入');
 }
 
 // 移除CSS
@@ -73,7 +106,83 @@ function removeCss() {
     injectedStyle.remove();
     injectedStyle = null;
     injectedCssContent = '';
-    console.log('DevHelper: CSS已成功移除');
+  }
+}
+
+// 注入JS
+function injectJs(js) {
+  // 检查URL是否允许
+  if (!isUrlAllowed(window.location.href)) {
+    return;
+  }
+  
+  if (!js) return;
+  
+  // 如果已有脚本，先移除
+  if (injectedScript) {
+    removeJs();
+  }
+  
+  // 创建script标签
+  injectedScript = document.createElement('script');
+  injectedScript.type = 'text/javascript';
+  injectedScript.textContent = js;
+  injectedScript.id = 'devHelperInjectedJs';
+  
+  // 注入到head
+  (document.head || document.documentElement).appendChild(injectedScript);
+  
+  injectedJsContent = js;
+  
+  // 发送自定义事件，通知页面JS注入成功
+  const event = new CustomEvent('devHelperJsInjected', {
+    detail: { success: true, message: 'DevHelper JS注入成功' }
+  });
+  window.dispatchEvent(event);
+}
+
+// 移除JS
+function removeJs() {
+  if (injectedScript) {
+    injectedScript.remove();
+    injectedScript = null;
+    injectedJsContent = '';
+  }
+}
+
+// 注入CSS
+function injectCss(css) {
+  // 检查URL是否允许
+  if (!isUrlAllowed(window.location.href)) {
+    return;
+  }
+  
+  if (!css) return;
+  
+  // 如果已有样式，先移除
+  if (injectedStyle) {
+    removeCss();
+  }
+  
+  // 创建style标签
+  injectedStyle = document.createElement('style');
+  injectedStyle.type = 'text/css';
+  injectedStyle.textContent = css;
+  injectedStyle.id = 'devHelperInjectedCss';
+  
+  // 注入到head
+  (document.head || document.documentElement).appendChild(injectedStyle);
+  
+  injectedCssContent = css;
+}
+
+// 移除CSS
+function removeCss() {
+  if (injectedStyle) {
+    injectedStyle.remove();
+    injectedStyle = null;
+    injectedCssContent = '';
+  
   }
 }
 
@@ -112,7 +221,6 @@ function findMatchingRule(url, method) {
           const regex = new RegExp(urlPattern);
           return regex.test(url);
         } catch (e) {
-          console.error('正则表达式错误:', e);
           return false;
         }
       default:
@@ -145,7 +253,6 @@ function createResponse(rule) {
     try {
       response = response();
     } catch (e) {
-      console.error('响应函数执行错误:', e);
       response = { error: '响应函数执行失败' };
     }
   }
@@ -201,7 +308,7 @@ function executeRequestInterceptors(requestUrl, method, options) {
         // 检查URL是否匹配拦截器的URL模式
         const regex = new RegExp(interceptor.urlPattern);
         if (regex.test(modifiedUrl)) {
-          console.log('执行请求前拦截器:', interceptor.name, '针对URL:', modifiedUrl);
+    
           
           // 创建请求上下文
           const request = {
@@ -220,7 +327,7 @@ function executeRequestInterceptors(requestUrl, method, options) {
           modifiedOptions.body = request.body;
         }
       } catch (error) {
-        console.error('请求前拦截器执行错误:', interceptor.name, error);
+        // 静默失败，不干扰用户
       }
     }
   });
@@ -234,7 +341,13 @@ window.fetch = function(url, options = {}) {
   const originalUrl = typeof url === 'string' ? url : url.url;
   const method = (options.method || 'GET').toUpperCase();
   
-  console.log('拦截fetch请求:', method, originalUrl);
+  // 检查URL是否允许
+  const urlAllowed = isUrlAllowed(originalUrl);
+  
+  // 如果URL不允许，直接调用原始fetch，不做任何拦截
+  if (!urlAllowed) {
+    return originalFetch.call(this, url, options);
+  }
   
   // 执行请求前拦截器
   const { url: modifiedUrl, options: modifiedOptions } = executeRequestInterceptors(originalUrl, method, options);
@@ -248,8 +361,6 @@ window.fetch = function(url, options = {}) {
   recordRequest(modifiedUrl, method, requestData, isMocked, matchingRule);
   
   if (matchingRule) {
-    console.log('找到匹配的Mock规则:', matchingRule.name);
-    
     // 发送拦截事件到content script
     window.postMessage({
       devHelper: true,
@@ -285,7 +396,7 @@ window.fetch = function(url, options = {}) {
         
         return response;
       }).catch(err => {
-        console.error('解析Mock响应内容失败:', err);
+        // 静默失败，不干扰用户
         return response;
       });
     });
@@ -312,7 +423,7 @@ window.fetch = function(url, options = {}) {
         }
       }, '*');
     }).catch(err => {
-      console.error('解析响应内容失败:', err);
+      // 静默失败，不干扰用户
     });
     
     return response;
@@ -333,7 +444,13 @@ XMLHttpRequest.prototype.send = function(...args) {
   const method = (this._devHelperMethod || 'GET').toUpperCase();
   let requestData = args[0] || {};
   
-  console.log('拦截XHR请求:', method, url);
+  // 检查URL是否允许
+  const urlAllowed = isUrlAllowed(url);
+  
+  // 如果URL不允许，直接调用原始send，不做任何拦截
+  if (!urlAllowed) {
+    return originalXHRSend.call(this, ...args);
+  }
   
   // 执行请求前拦截器
   const headers = {};
@@ -348,7 +465,7 @@ XMLHttpRequest.prototype.send = function(...args) {
         }
       });
     } catch (e) {
-      console.error('获取XHR请求头失败:', e);
+      // 静默失败，不干扰用户
     }
   }
   
@@ -374,8 +491,6 @@ XMLHttpRequest.prototype.send = function(...args) {
   recordRequest(url, method, requestData, isMocked, matchingRule);
   
   if (matchingRule) {
-    console.log('找到匹配的Mock规则:', matchingRule.name);
-    
     // 发送拦截事件到content script
     window.postMessage({
       devHelper: true,
@@ -449,7 +564,7 @@ XMLHttpRequest.prototype.send = function(...args) {
           this.dispatchEvent(loadEvent);
         }
       } catch (error) {
-        console.error('模拟XHR响应失败:', error);
+        // 静默失败，不干扰用户
       }
     }, matchingRule.responseTime || 0);
     
@@ -470,12 +585,12 @@ XMLHttpRequest.prototype.send = function(...args) {
       });
       
       // 添加修改后的请求头
-      Object.keys(modifiedOptions.headers).forEach(name => {
-        this.setRequestHeader(name, modifiedOptions.headers[name]);
-      });
-    } catch (e) {
-      console.error('更新XHR请求头失败:', e);
-    }
+  Object.keys(modifiedOptions.headers).forEach(name => {
+    this.setRequestHeader(name, modifiedOptions.headers[name]);
+  });
+} catch (e) {
+  // 静默失败，不干扰用户
+}
   }
   
   // 为原始XHR请求添加响应记录

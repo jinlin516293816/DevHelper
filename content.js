@@ -1,14 +1,11 @@
 // content.js - 在网页上下文中执行的脚本
 
-console.log('DevHelper 内容脚本已加载');
-
 // 注入injected.js到页面
 function injectScript() {
-  console.log('开始注入injected.js到页面');
   
   // 先从storage获取设置，确保注入后能立即发送正确的mock状态
   if (typeof chrome !== 'undefined' && chrome.storage) {
-    chrome.storage.local.get(['mockRules', 'settings', 'injectedCss', 'cssInjectionStatus', 'requestInterceptors'], function(result) {
+    chrome.storage.local.get(['mockRules', 'settings', 'injectedCss', 'cssInjectionStatus', 'injectedJs', 'jsInjectionStatus', 'requestInterceptors'], function(result) {
       const rules = result.mockRules || [];
       const settings = result.settings || {};
       const mockEnabled = settings.mockEnabled !== undefined ? settings.mockEnabled : true;
@@ -16,12 +13,17 @@ function injectScript() {
       const cssInjectionStatus = result.cssInjectionStatus || false;
       const requestInterceptors = Array.isArray(result.requestInterceptors) ? result.requestInterceptors : [];
       
+      // 获取URL限制设置
+      const urlRestrictionEnabled = settings.urlRestrictionEnabled !== undefined ? settings.urlRestrictionEnabled : false;
+      const allowedUrlsStr = settings.allowedUrls || '';
+      const allowedUrls = allowedUrlsStr.split(',').map(url => url.trim()).filter(url => url !== '');
+      
       try {
         // 创建script标签
         const script = document.createElement('script');
         script.src = chrome.runtime.getURL('injected.js');
         script.onerror = function() {
-          console.error('injected.js注入失败');
+          // 静默失败，不干扰用户
         };
         
         // 注入到head
@@ -30,7 +32,6 @@ function injectScript() {
         // 注入后移除script标签并发送Mock规则和状态
         script.onload = function() {
           script.remove();
-          console.log('injected.js已注入并移除script标签');
           
           // 立即发送mock状态和规则
           window.postMessage({
@@ -52,18 +53,36 @@ function injectScript() {
             interceptors: requestInterceptors
           }, '*');
           
+          // 发送URL限制设置
+          window.postMessage({
+            devHelper: true,
+            action: 'updateUrlRestriction',
+            enabled: urlRestrictionEnabled,
+            allowedUrls: allowedUrls
+          }, '*');
+          
           // 如果CSS注入功能是启用状态，自动注入CSS
-          if (cssInjectionStatus && injectedCss) {
-            console.log('自动注入CSS，内容长度:', injectedCss.length);
-            window.postMessage({
-              devHelper: true,
-              action: 'injectCss',
-              css: injectedCss
-            }, '*');
-          }
+        if (cssInjectionStatus && injectedCss) {
+          window.postMessage({
+            devHelper: true,
+            action: 'injectCss',
+            css: injectedCss
+          }, '*');
+        }
+        
+        // 如果JS注入功能是启用状态，自动注入JS
+        const injectedJs = result.injectedJs || '';
+        const jsInjectionStatus = result.jsInjectionStatus || false;
+        if (jsInjectionStatus && injectedJs) {
+          window.postMessage({
+            devHelper: true,
+            action: 'injectJs',
+            js: injectedJs
+          }, '*');
+        }
         };
       } catch (error) {
-        console.error('注入脚本出错:', error);
+        // 静默失败，不干扰用户
       }
     });
   }
@@ -72,7 +91,7 @@ function injectScript() {
 // 从存储加载Mock规则和Mock开关状态并发送给injected.js
 function loadAndSendMockRules() {
   if (typeof chrome !== 'undefined' && chrome.storage) {
-    chrome.storage.local.get(['mockRules', 'settings', 'injectedCss', 'cssInjectionStatus', 'requestInterceptors'], function(result) {
+    chrome.storage.local.get(['mockRules', 'settings', 'injectedCss', 'cssInjectionStatus', 'injectedJs', 'jsInjectionStatus', 'requestInterceptors'], function(result) {
       const rules = result.mockRules || [];
       const settings = result.settings || {};
       const mockEnabled = settings.mockEnabled !== undefined ? settings.mockEnabled : true;
@@ -80,10 +99,10 @@ function loadAndSendMockRules() {
       const cssInjectionStatus = result.cssInjectionStatus || false;
       const requestInterceptors = Array.isArray(result.requestInterceptors) ? result.requestInterceptors : [];
       
-      console.log('加载Mock规则，数量:', rules.length);
-      console.log('加载Mock开关状态:', mockEnabled);
-      console.log('加载CSS注入状态:', cssInjectionStatus);
-      console.log('加载请求前拦截器，数量:', requestInterceptors.length);
+      // 获取URL限制设置
+      const urlRestrictionEnabled = settings.urlRestrictionEnabled !== undefined ? settings.urlRestrictionEnabled : false;
+      const allowedUrlsStr = settings.allowedUrls || '';
+      const allowedUrls = allowedUrlsStr.split(',').map(url => url.trim()).filter(url => url !== '');
       
       // 发送规则到injected.js
       window.postMessage({
@@ -106,13 +125,31 @@ function loadAndSendMockRules() {
         interceptors: requestInterceptors
       }, '*');
       
+      // 发送URL限制设置
+      window.postMessage({
+        devHelper: true,
+        action: 'updateUrlRestriction',
+        enabled: urlRestrictionEnabled,
+        allowedUrls: allowedUrls
+      }, '*');
+      
       // 如果CSS注入功能是启用状态，自动注入CSS
       if (cssInjectionStatus && injectedCss) {
-        console.log('自动注入CSS，内容长度:', injectedCss.length);
         window.postMessage({
           devHelper: true,
           action: 'injectCss',
           css: injectedCss
+        }, '*');
+      }
+      
+      // 如果JS注入功能是启用状态，自动注入JS
+      const injectedJs = result.injectedJs || '';
+      const jsInjectionStatus = result.jsInjectionStatus || false;
+      if (jsInjectionStatus && injectedJs) {
+        window.postMessage({
+          devHelper: true,
+          action: 'injectJs',
+          js: injectedJs
         }, '*');
       }
     });
@@ -141,11 +178,8 @@ initInject();
 
 // 与popup和background通信
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('content.js收到消息:', message.action, '来自:', sender.tab ? sender.tab.url : 'background');
-  
   // 确保消息有action属性
   if (!message.action) {
-    console.error('content.js收到无action属性的消息:', message);
     sendResponse({ 
       success: false, 
       error: '消息缺少action属性',
@@ -156,22 +190,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   switch (message.action) {
     case 'injectCss':
-      // 向页面注入CSS
-      window.postMessage({
-        devHelper: true,
-        action: 'injectCss',
-        css: message.css
-      }, '*');
-      sendResponse({ success: true, message: 'CSS注入命令已发送' });
-      break;
-    case 'removeCss':
-      // 从页面移除CSS
-      window.postMessage({
-        devHelper: true,
-        action: 'removeCss'
-      }, '*');
-      sendResponse({ success: true, message: 'CSS移除命令已发送' });
-      break;
+        // 向页面注入CSS
+        window.postMessage({
+          devHelper: true,
+          action: 'injectCss',
+          css: message.css
+        }, '*');
+        sendResponse({ success: true, message: 'CSS注入命令已发送' });
+        break;
+      case 'removeCss':
+        // 从页面移除CSS
+        window.postMessage({
+          devHelper: true,
+          action: 'removeCss'
+        }, '*');
+        sendResponse({ success: true, message: 'CSS移除命令已发送' });
+        break;
+      case 'injectJs':
+        // 向页面注入JS
+        window.postMessage({
+          devHelper: true,
+          action: 'injectJs',
+          js: message.js
+        }, '*');
+        sendResponse({ success: true, message: 'JS注入命令已发送' });
+        break;
+      case 'removeJs':
+        // 从页面移除JS
+        window.postMessage({
+          devHelper: true,
+          action: 'removeJs'
+        }, '*');
+        sendResponse({ success: true, message: 'JS移除命令已发送' });
+        break;
     case 'getPageDetails':
       // 获取页面详细信息
       const pageDetails = {
@@ -199,7 +250,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const result = eval(message.script);
         sendResponse({ success: true, result });
       } catch (error) {
-        console.error('执行脚本失败:', error);
         sendResponse({ success: false, error: error.message });
       }
       break;
@@ -233,14 +283,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ success: false, error: '元素未找到' });
         }
       } catch (error) {
-        console.error('高亮元素失败:', error);
         sendResponse({ success: false, error: error.message });
       }
       break;
       
     case 'updateMockRules':
       // 处理Mock规则更新
-      console.log('从background收到Mock规则更新，数量:', message.rules ? message.rules.length : 0);
       // 将更新的规则发送给injected.js
       window.postMessage({
         devHelper: true,
@@ -252,7 +300,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       
     case 'toggleMock':
       // 处理Mock开关状态更新
-      console.log('从background收到Mock开关状态:', message.enabled);
       // 将开关状态发送给injected.js
       window.postMessage({
         devHelper: true,
@@ -264,7 +311,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       
     case 'updateRequestInterceptors':
       // 处理请求前拦截器更新
-      console.log('从background收到请求前拦截器更新，数量:', message.interceptors ? message.interceptors.length : 0);
       // 将更新的拦截器发送给injected.js
       window.postMessage({
         devHelper: true,
@@ -276,13 +322,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       
     case 'tabUpdated':
       // 处理标签页更新事件
-      console.log('收到标签页更新通知:', message.tabInfo);
       // 可以在这里执行页面更新后的操作
       sendResponse({ success: true, message: '已收到标签页更新通知' });
       break;
     
     default:
-      console.error('content.js收到未知action:', message.action);
       sendResponse({ 
         success: false, 
         error: '未知操作',
@@ -300,27 +344,57 @@ const observer = new MutationObserver((mutations) => {
   // 但为了性能，我们仅在必要时触发
 });
 
+// 检查URL是否在允许的列表中
+function isUrlAllowed(url, settings) {
+  // 如果未启用网址限制，则允许所有URL
+  if (!settings.urlRestrictionEnabled) {
+    return true;
+  }
+  
+  // 如果允许的网址列表为空，则不允许任何URL
+  if (!settings.allowedUrls || settings.allowedUrls.trim() === '') {
+    return false;
+  }
+  
+  // 将允许的网址列表分割为数组
+  const allowedUrlsArray = settings.allowedUrls.split(',').map(url => url.trim()).filter(url => url !== '');
+  
+  // 检查URL是否与任何允许的网址匹配（模糊匹配）
+  for (const allowedUrl of allowedUrlsArray) {
+    if (url.includes(allowedUrl)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 // 监听DOMContentLoaded事件
 document.addEventListener('DOMContentLoaded', () => {
-  // 页面加载完成后可以执行一些初始化操作
-  chrome.runtime.sendMessage({ 
-    action: 'pageLoaded',
-    data: { 
-      url: window.location.href,
-      title: document.title
-    } 
-  });
-  
-  // 检查是否需要显示通知
+  // 获取设置并检查URL是否允许
   if (typeof chrome !== 'undefined' && chrome.storage) {
     chrome.storage.local.get(['settings'], function(result) {
       const settings = result.settings || {};
-      // 默认显示通知
-      const showNotification = settings.showNotification !== undefined ? settings.showNotification : true;
       
-      if (showNotification) {
-        // 显示DevHelper已启用的通知
-        showDevHelperNotification();
+      // 检查URL是否允许
+      if (isUrlAllowed(window.location.href, settings)) {
+        // 页面加载完成后可以执行一些初始化操作
+        chrome.runtime.sendMessage({ 
+          action: 'pageLoaded',
+          data: { 
+            url: window.location.href,
+            title: document.title
+          } 
+        });
+        
+        // 检查是否需要显示通知
+        // 默认显示通知
+        const showNotification = settings.showNotification !== undefined ? settings.showNotification : true;
+        
+        if (showNotification) {
+          // 显示DevHelper已启用的通知
+          showDevHelperNotification();
+        }
       }
     });
   }
@@ -345,7 +419,7 @@ function showDevHelperNotification() {
     font-weight: 500;
     animation: slideInRight 0.3s ease-out;
   `;
-  notification.textContent = '启用了DevHelper 拯救者';
+  notification.textContent = 'DevHelper 拯救者已启动';
   
   // 添加动画样式
   const style = document.createElement('style');
@@ -390,6 +464,38 @@ function showDevHelperNotification() {
   }, 5000);
 }
 
+// 监听chrome.storage的变化
+if (typeof chrome !== 'undefined' && chrome.storage) {
+  chrome.storage.onChanged.addListener(function(changes, namespace) {
+    // 处理settings变化
+    if (changes.settings) {
+      const newSettings = changes.settings.newValue || {};
+      
+      // 检查是否是URL限制设置变化
+      if (changes.settings.oldValue) {
+        const oldSettings = changes.settings.oldValue;
+        const urlRestrictionChanged = 
+          oldSettings.urlRestrictionEnabled !== newSettings.urlRestrictionEnabled ||
+          oldSettings.allowedUrls !== newSettings.allowedUrls;
+        
+        if (urlRestrictionChanged) {
+          // 发送URL限制设置更新给injected.js
+          const urlRestrictionEnabled = newSettings.urlRestrictionEnabled !== undefined ? newSettings.urlRestrictionEnabled : false;
+          const allowedUrlsStr = newSettings.allowedUrls || '';
+          const allowedUrls = allowedUrlsStr.split(',').map(url => url.trim()).filter(url => url !== '');
+          
+          window.postMessage({
+            devHelper: true,
+            action: 'updateUrlRestriction',
+            enabled: urlRestrictionEnabled,
+            allowedUrls: allowedUrls
+          }, '*');
+        }
+      }
+    }
+  });
+}
+
 // 监听injected.js的消息
 window.addEventListener('message', (event) => {
   // 确保消息来自页面上下文且是我们的扩展发送的
@@ -402,11 +508,9 @@ window.addEventListener('message', (event) => {
   // 处理不同类型的消息
   switch (data.action) {
     case 'injectedSuccessfully':
-      console.log('injected.js注入成功并已初始化');
       break;
       
     case 'requestIntercepted':
-      console.log('请求被拦截:', data.data);
       // 将拦截信息发送给background
       chrome.runtime.sendMessage({
         action: 'requestIntercepted',
@@ -416,7 +520,6 @@ window.addEventListener('message', (event) => {
       
     case 'requestRecorded':
       // 接收请求记录并转发给background.js
-      console.log('请求已记录:', data.data.url, data.data.method);
       chrome.runtime.sendMessage({
         action: 'requestRecorded',
         data: data.data
@@ -425,7 +528,6 @@ window.addEventListener('message', (event) => {
       
     case 'responseRecorded':
       // 接收响应记录并转发给background.js
-      console.log('响应已记录:', data.data.url, data.data.status);
       chrome.runtime.sendMessage({
         action: 'responseRecorded',
         data: data.data
@@ -433,7 +535,7 @@ window.addEventListener('message', (event) => {
       break;
       
     default:
-      console.log('收到injected.js消息:', data.action);
+      break;
   }
 });
 
