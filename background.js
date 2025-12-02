@@ -43,6 +43,7 @@ let capturedRequests = [];
 // 请求日志存储 - 保存所有页面请求
 let requestLogs = [];
 const MAX_REQUEST_LOGS = 5000; // 限制日志数量，避免内存溢出
+let currentLogId = 1; // 用于生成递增的日志ID
 
 // Mock功能相关状态
 let mockEnabled = false;
@@ -238,10 +239,49 @@ function setupNetworkListeners() {
           if (mockRule) {
             console.log('匹配到Mock规则:', mockRule.name, 'URL:', details.url);
             
-            // 阻止原始请求，返回Mock数据
-            return {
-              redirectUrl: `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(mockRule.response))}`
-            };
+            // 根据规则设置或自动检测内容类型
+        let contentType = 'application/json';
+        let responseText = mockRule.response;
+        
+        // 如果是对象，默认使用JSON格式
+        if (typeof responseText === 'object') {
+          responseText = JSON.stringify(responseText);
+        }
+        // 如果是字符串，根据内容自动检测类型
+        else if (typeof responseText === 'string') {
+          // 检测CSS
+          if (responseText.trim().startsWith('/*') || responseText.trim().startsWith('body') || 
+              responseText.trim().startsWith('.') || responseText.trim().startsWith('#')) {
+            contentType = 'text/css';
+          }
+          // 检测JavaScript
+          else if (responseText.trim().startsWith('//') || responseText.trim().startsWith('/*') ||
+                   responseText.trim().startsWith('function') || responseText.trim().startsWith('const') ||
+                   responseText.trim().startsWith('let') || responseText.trim().startsWith('var') ||
+                   responseText.trim().startsWith('if') || responseText.trim().startsWith('for') ||
+                   responseText.trim().startsWith('while') || responseText.trim().startsWith('return')) {
+            contentType = 'application/javascript';
+          }
+          // 检测HTML
+          else if (responseText.trim().startsWith('<')) {
+            contentType = 'text/html';
+          }
+          // 检测JSON字符串
+          else {
+            try {
+              JSON.parse(responseText);
+              contentType = 'application/json';
+            } catch (e) {
+              // 默认文本类型
+              contentType = 'text/plain';
+            }
+          }
+        }
+        
+        // 阻止原始请求，返回Mock数据
+        return {
+          redirectUrl: `data:${contentType};charset=utf-8,${encodeURIComponent(responseText)}`
+        };
           }
         }
       }
@@ -516,7 +556,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       
       if (enableLogging) {
         requestLogs.push({
-          id: Date.now() + Math.random().toString(36).substr(2, 9), // 生成唯一ID
+          id: currentLogId++, // 使用递增的ID
           timestamp: requestData.timestamp || Date.now(),
           url: requestData.url,
           method: requestData.method,
@@ -561,7 +601,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         } else {
           // 如果找不到对应的请求日志，创建一个新的完整日志
           requestLogs.push({
-            id: Date.now() + Math.random().toString(36).substr(2, 9),
+            id: currentLogId++, // 使用递增的ID
             timestamp: responseData.timestamp - (responseData.timestamp % 1000), // 估算请求时间
             url: responseData.url,
             method: responseData.method,
@@ -803,6 +843,7 @@ globalThis.devHelper = {
     // 清空请求日志
     clear: function() {
       requestLogs = [];
+      currentLogId = 1; // 重置日志ID计数器
       return { success: true, message: '请求日志已清空' };
     },
     

@@ -55,6 +55,10 @@ function showToolLauncher() {
                     <i class="fas fa-search"></i>
                     正则表达式工具
                 </button>
+                <button class="btn btn-primary" onclick="openTool('rescuer'); closeModal();">
+                    <i class="fas fa-tools"></i>
+                    拯救者工具
+                </button>
             </div>
             <div class="launcher-actions" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e1e4e8;">
                 <p class="modal-note" style="margin-bottom: 15px;">
@@ -93,7 +97,8 @@ function fallbackOpenTool(toolName) {
         'colors': 'colors/index.html',
         'json-format': 'json-format/index.html',
         'file-compare': 'file-compare/index.html',
-        'regex-tools': 'regex-tools/index.html'
+        'regex-tools': 'regex-tools/index.html',
+        'rescuer': 'rescuer/index.html'
     };
     
     const toolPath = toolPaths[toolName];
@@ -110,7 +115,8 @@ function showShortcuts(toolName) {
         'colors': 'Ctrl+Shift+E (Windows/Linux) / Command+Shift+E (Mac)',
         'json-format': 'Ctrl+Shift+J (Windows/Linux) / Command+Shift+J (Mac)',
         'file-compare': 'Ctrl+Shift+C (Windows/Linux) / Command+Shift+C (Mac)',
-        'regex-tools': 'Ctrl+Shift+R (Windows/Linux) / Command+Shift+R (Mac)'
+        'regex-tools': 'Ctrl+Shift+R (Windows/Linux) / Command+Shift+R (Mac)',
+        'rescuer': 'Ctrl+Shift+S (Windows/Linux) / Command+Shift+S (Mac)'
     };
     
     const shortcut = shortcuts[toolName];

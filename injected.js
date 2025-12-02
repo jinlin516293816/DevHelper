@@ -257,21 +257,58 @@ function createResponse(rule) {
     }
   }
   
-  // 如果是字符串，尝试解析为JSON
-  if (typeof response === 'string') {
-    try {
-      response = JSON.parse(response);
-    } catch (e) {
-      // 如果不是JSON，保持原样
+  // 构建fetch响应
+  const headers = new Headers(rule.headers || {});
+  
+  // 确定内容类型
+  let contentType = headers.get('content-type');
+  let responseText = response;
+  
+  // 如果是对象，默认使用JSON格式
+  if (typeof response === 'object') {
+    responseText = JSON.stringify(response);
+    if (!contentType) {
+      contentType = 'application/json';
+    }
+  } 
+  // 如果是字符串，根据内容或URL自动检测类型
+  else if (typeof response === 'string') {
+    // 如果没有指定Content-Type，根据内容自动检测
+    if (!contentType) {
+      // 检测CSS
+      if (response.trim().startsWith('/*') || response.trim().startsWith('body') || 
+          response.trim().startsWith('.') || response.trim().startsWith('#')) {
+        contentType = 'text/css';
+      }
+      // 检测JavaScript
+      else if (response.trim().startsWith('//') || response.trim().startsWith('/*') ||
+               response.trim().startsWith('function') || response.trim().startsWith('const') ||
+               response.trim().startsWith('let') || response.trim().startsWith('var') ||
+               response.trim().startsWith('if') || response.trim().startsWith('for') ||
+               response.trim().startsWith('while') || response.trim().startsWith('return')) {
+        contentType = 'application/javascript';
+      }
+      // 检测HTML
+      else if (response.trim().startsWith('<')) {
+        contentType = 'text/html';
+      }
+      // 检测JSON字符串
+      else {
+        try {
+          JSON.parse(response);
+          contentType = 'application/json';
+        } catch (e) {
+          // 默认文本类型
+          contentType = 'text/plain';
+        }
+      }
     }
   }
   
-  // 构建fetch响应
-  const headers = new Headers(rule.headers || {
-    'content-type': 'application/json'
-  });
+  // 设置Content-Type头
+  headers.set('content-type', contentType);
   
-  return new Response(JSON.stringify(response), {
+  return new Response(responseText, {
     status: rule.statusCode || 200,
     statusText: rule.statusText || 'OK',
     headers: headers
