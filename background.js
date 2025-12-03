@@ -514,6 +514,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (requestLogs.length > MAX_REQUEST_LOGS) {
           requestLogs.shift(); // 移除最旧的日志
         }
+        
+        // 同时在控制台输出，便于调试
+        if (requestData.isMocked) {
+          console.info(`[DevHelper] 拦截请求: ${requestData.method} ${requestData.url}`, 
+                       `匹配规则: ${requestData.mockRuleName || requestData.mockRuleId}`);
+        }
       }
       sendResponse({ success: true });
       return false;
@@ -538,22 +544,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           requestLogs[logIndex].statusText = responseData.statusText;
           requestLogs[logIndex].responseText = responseData.responseText;
           requestLogs[logIndex].responseTime = responseData.timestamp - requestLogs[logIndex].timestamp;
+          
+          // 在控制台输出响应信息，便于调试
+          if (requestLogs[logIndex].isMocked) {
+            console.info(`[DevHelper] Mock响应: ${responseData.method} ${responseData.url}`,
+                         `状态: ${responseData.status} ${responseData.statusText}`,
+                         `耗时: ${requestLogs[logIndex].responseTime}ms`);
+          }
         } else {
           // 如果找不到对应的请求日志，创建一个新的完整日志
+          const isMockedResponse = responseData.status !== 0 && 
+                                  (responseData.statusText !== 'Network Error') && 
+                                  (responseData.responseText && responseData.responseText.includes('X-DevHelper'));
+          
           requestLogs.push({
             id: currentLogId++, // 使用递增的ID
             timestamp: responseData.timestamp - (responseData.timestamp % 1000), // 估算请求时间
             url: responseData.url,
             method: responseData.method,
             requestData: null,
-            isMocked: false,
-            mockRuleId: null,
-            mockRuleName: null,
+            isMocked: isMockedResponse,
+            mockRuleId: isMockedResponse ? 'unknown' : null,
+            mockRuleName: isMockedResponse ? 'Unknown Rule' : null,
             status: responseData.status,
             statusText: responseData.statusText,
             responseText: responseData.responseText,
             responseTime: 0
           });
+          
+          // 在控制台输出响应信息，便于调试
+          if (isMockedResponse) {
+            console.info(`[DevHelper] Mock响应 (未匹配到请求日志): ${responseData.method} ${responseData.url}`,
+                         `状态: ${responseData.status} ${responseData.statusText}`);
+          }
           
           // 限制日志数量
           if (requestLogs.length > MAX_REQUEST_LOGS) {

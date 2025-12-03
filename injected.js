@@ -159,6 +159,8 @@ function findMatchingRule(url, method) {
     }
   }
   
+  let matchedRule = null;
+  
   // 遍历所有规则，记录匹配结果
   for (let i = 0; i < mockRules.length; i++) {
     const rule = mockRules[i];
@@ -211,14 +213,20 @@ function findMatchingRule(url, method) {
       }
       
       if (isMatch) {
-        return rule;
+        matchedRule = rule;
+        break;
       }
     } catch (e) {
       console.error('[DevHelper] 规则匹配错误:', rule.name || rule.id, e);
     }
   }
   
-  return null;
+  // 如果找到了匹配的规则，记录日志
+  if (matchedRule) {
+    console.log(`[DevHelper] 匹配到拦截规则: ${matchedRule.name} (${matchedRule.id}) - ${method} ${url}`);
+  }
+  
+  return matchedRule;
 }
 
 // 创建Mock响应
@@ -249,21 +257,26 @@ function createResponse(rule) {
     }
   }
   
-  // 构建fetch响应，添加默认响应头
+  // 构建fetch响应，处理默认响应头
   const headers = new Headers(rule.headers || {});
   
+  // 检查是否需要使用默认响应头
+  const shouldUseDefaultHeaders = rule.useDefaultHeaders || Object.keys(rule.headers || {}).length === 0;
+  
   // 添加默认响应头
-  if (!headers.has('Content-Type') && !headers.has('content-type')) {
-    // Content-Type将在后续自动检测并设置
-  }
-  if (!headers.has('Cache-Control')) {
-    headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-  }
-  if (!headers.has('Pragma')) {
-    headers.set('Pragma', 'no-cache');
-  }
-  if (!headers.has('Expires')) {
-    headers.set('Expires', '0');
+  if (shouldUseDefaultHeaders) {
+    if (!headers.has('Content-Type') && !headers.has('content-type')) {
+      // Content-Type将在后续自动检测并设置
+    }
+    if (!headers.has('Cache-Control')) {
+      headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+    if (!headers.has('Pragma')) {
+      headers.set('Pragma', 'no-cache');
+    }
+    if (!headers.has('Expires')) {
+      headers.set('Expires', '0');
+    }
   }
   
   // 确定内容类型
@@ -399,7 +412,7 @@ Object.defineProperty(window, 'fetch', {
       // 如果URL被修复，使用修复后的URL
       if (fixedUrl !== originalUrl) {
         if (url instanceof Request) {
-          // 创建一个新的Request对象
+          // 创建一个新的Request对象，保持所有属性
           const newRequest = new Request(fixedUrl, {
             method: url.method,
             headers: url.headers,
@@ -409,7 +422,9 @@ Object.defineProperty(window, 'fetch', {
             cache: url.cache,
             redirect: url.redirect,
             referrer: url.referrer,
-            integrity: url.integrity
+            referrerPolicy: url.referrerPolicy,
+            integrity: url.integrity,
+            keepalive: url.keepalive
           });
           return window.__devHelperOriginalFetch.call(this, newRequest);
         } else {
@@ -428,7 +443,7 @@ Object.defineProperty(window, 'fetch', {
       // 如果URL被修复，使用修复后的URL
       if (fixedUrl !== originalUrl) {
         if (url instanceof Request) {
-          // 创建一个新的Request对象
+          // 创建一个新的Request对象，保持所有属性
           const newRequest = new Request(fixedUrl, {
             method: url.method,
             headers: url.headers,
@@ -438,7 +453,9 @@ Object.defineProperty(window, 'fetch', {
             cache: url.cache,
             redirect: url.redirect,
             referrer: url.referrer,
-            integrity: url.integrity
+            referrerPolicy: url.referrerPolicy,
+            integrity: url.integrity,
+            keepalive: url.keepalive
           });
           return window.__devHelperOriginalFetch.call(this, newRequest);
         } else {
@@ -461,8 +478,6 @@ Object.defineProperty(window, 'fetch', {
     recordRequest(modifiedUrl, method, requestData, isMocked, matchingRule);
     
     if (matchingRule) {
-      // 输出匹配到拦截规则的日志
-      console.log(`[DevHelper] 匹配到拦截规则: ${matchingRule.name} (${matchingRule.id}) - ${method} ${modifiedUrl}`);
       // 发送拦截事件到content script
       window.postMessage({
         devHelper: true,
@@ -475,7 +490,7 @@ Object.defineProperty(window, 'fetch', {
         }
       }, '*');
       
-      // 返回Mock响应并记录
+      // 创建Mock响应并记录
       try {
         const mockResponsePromise = createMockResponse(matchingRule);
         
@@ -505,31 +520,6 @@ Object.defineProperty(window, 'fetch', {
             console.error('[DevHelper] 解析Mock响应内容时出错:', err);
             return response;
           });
-        }).catch(err => {
-          console.error('[DevHelper] createMockResponse执行出错:', err);
-          // 如果Mock响应创建失败，回退到原始请求
-          // 如果URL被修复，使用修复后的URL
-          if (fixedUrl !== originalUrl) {
-            if (url instanceof Request) {
-              // 创建一个新的Request对象
-              const newRequest = new Request(fixedUrl, {
-                method: url.method,
-                headers: url.headers,
-                body: url.body,
-                mode: url.mode,
-                credentials: url.credentials,
-                cache: url.cache,
-                redirect: url.redirect,
-                referrer: url.referrer,
-                integrity: url.integrity
-              });
-              return window.__devHelperOriginalFetch.call(this, newRequest);
-            } else {
-              return window.__devHelperOriginalFetch.call(this, fixedUrl, options);
-            }
-          }
-          // 如果url是Request对象，不需要传递options参数
-          return window.__devHelperOriginalFetch.call(this, url, url instanceof Request ? undefined : options);
         });
       } catch (err) {
         console.error('[DevHelper] Mock响应处理发生异常:', err);
@@ -537,7 +527,7 @@ Object.defineProperty(window, 'fetch', {
         // 如果URL被修复，使用修复后的URL
         if (fixedUrl !== originalUrl) {
           if (url instanceof Request) {
-            // 创建一个新的Request对象
+            // 创建一个新的Request对象，保持所有属性
             const newRequest = new Request(fixedUrl, {
               method: url.method,
               headers: url.headers,
@@ -547,7 +537,9 @@ Object.defineProperty(window, 'fetch', {
               cache: url.cache,
               redirect: url.redirect,
               referrer: url.referrer,
-              integrity: url.integrity
+              referrerPolicy: url.referrerPolicy,
+              integrity: url.integrity,
+              keepalive: url.keepalive
             });
             return window.__devHelperOriginalFetch.call(this, newRequest);
           } else {
@@ -566,7 +558,7 @@ Object.defineProperty(window, 'fetch', {
     if (fixedUrl !== originalUrl) {
       finalUrlForLogging = fixedUrl;
       if (modifiedUrl instanceof Request) {
-        // 创建一个新的Request对象
+        // 创建一个新的Request对象，保持所有属性
         fetchUrl = new Request(fixedUrl, {
           method: modifiedUrl.method,
           headers: modifiedUrl.headers,
@@ -576,7 +568,9 @@ Object.defineProperty(window, 'fetch', {
           cache: modifiedUrl.cache,
           redirect: modifiedUrl.redirect,
           referrer: modifiedUrl.referrer,
-          integrity: modifiedUrl.integrity
+          referrerPolicy: modifiedUrl.referrerPolicy,
+          integrity: modifiedUrl.integrity,
+          keepalive: modifiedUrl.keepalive
         });
       } else {
         fetchUrl = fixedUrl;
@@ -669,19 +663,10 @@ XMLHttpRequest.prototype.send = function(...args) {
   
   // 执行请求前拦截器
   const headers = {};
-  // 提取XHR请求头
-  if (this.getAllRequestHeaders) {
-    try {
-      const headerLines = this.getAllRequestHeaders().split('\r\n');
-      headerLines.forEach(line => {
-        if (line) {
-          const [name, value] = line.split(': ');
-          headers[name] = value;
-        }
-      });
-    } catch (e) {
-      // 静默失败，不干扰用户
-    }
+  // 提取XHR请求头 (注意：getAllRequestHeaders 不是标准方法)
+  // 我们需要通过其他方式跟踪请求头
+  if (this._devHelperRequestHeaders) {
+    Object.assign(headers, this._devHelperRequestHeaders);
   }
   
   // 为XHR创建options对象
@@ -702,11 +687,10 @@ XMLHttpRequest.prototype.send = function(...args) {
   const matchingRule = findMatchingRule(url, method);
   
   if (matchingRule) {
-    // 输出匹配到拦截规则的日志
-    console.log(`[DevHelper] 匹配到拦截规则: ${matchingRule.name} (${matchingRule.id}) - ${method} ${url}`);
     // 记录请求，根据是否匹配Mock规则标记
     const isMocked = !!matchingRule;
     recordRequest(url, method, requestData, isMocked, matchingRule);
+    
     // 发送拦截事件到content script
     window.postMessage({
       devHelper: true,
@@ -726,6 +710,53 @@ XMLHttpRequest.prototype.send = function(...args) {
         const response = matchingRule.response;
         const responseText = typeof response === 'string' ? response : JSON.stringify(response);
         
+        // 处理响应头
+        const responseHeaders = new Headers(matchingRule.headers || {});
+        
+        // 检查是否需要使用默认响应头
+        const shouldUseDefaultHeaders = matchingRule.useDefaultHeaders || Object.keys(matchingRule.headers || {}).length === 0;
+        
+        // 添加默认响应头
+        if (shouldUseDefaultHeaders) {
+          if (!responseHeaders.has('Cache-Control')) {
+            responseHeaders.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+          }
+          if (!responseHeaders.has('Pragma')) {
+            responseHeaders.set('Pragma', 'no-cache');
+          }
+          if (!responseHeaders.has('Expires')) {
+            responseHeaders.set('Expires', '0');
+          }
+        }
+        
+        // 确保设置了Content-Type
+        if (!responseHeaders.has('Content-Type') && !responseHeaders.has('content-type')) {
+          // 根据响应内容确定Content-Type
+          let contentType = 'application/json';
+          if (typeof matchingRule.response === 'string') {
+            if (matchingRule.response.trim().startsWith('/*') || matchingRule.response.trim().startsWith('body') || 
+                matchingRule.response.trim().startsWith('.') || matchingRule.response.trim().startsWith('#')) {
+              contentType = 'text/css';
+            } else if (matchingRule.response.trim().startsWith('//') || matchingRule.response.trim().startsWith('/*') ||
+                     matchingRule.response.trim().startsWith('function') || matchingRule.response.trim().startsWith('const') ||
+                     matchingRule.response.trim().startsWith('let') || matchingRule.response.trim().startsWith('var') ||
+                     matchingRule.response.trim().startsWith('if') || matchingRule.response.trim().startsWith('for') ||
+                     matchingRule.response.trim().startsWith('while') || matchingRule.response.trim().startsWith('return')) {
+              contentType = 'application/javascript';
+            } else if (matchingRule.response.trim().startsWith('<')) {
+              contentType = 'text/html';
+            } else {
+              try {
+                JSON.parse(matchingRule.response);
+                contentType = 'application/json';
+              } catch (e) {
+                contentType = 'text/plain';
+              }
+            }
+          }
+          responseHeaders.set('Content-Type', contentType);
+        }
+        
         // 设置响应属性
         const properties = {
           readyState: {
@@ -742,6 +773,24 @@ XMLHttpRequest.prototype.send = function(...args) {
           },
           responseText: {
             value: responseText,
+            writable: false
+          },
+          // 实现getResponseHeader方法
+          getResponseHeader: {
+            value: function(headerName) {
+              return responseHeaders.get(headerName.toLowerCase());
+            },
+            writable: false
+          },
+          // 实现getAllResponseHeaders方法
+          getAllResponseHeaders: {
+            value: function() {
+              let headersString = '';
+              responseHeaders.forEach((value, name) => {
+                headersString += `${name}: ${value}\r\n`;
+              });
+              return headersString;
+            },
             writable: false
           }
         };
@@ -864,19 +913,10 @@ XMLHttpRequest.prototype.send = function(...args) {
   }
   
   // 更新XHR的请求头
+  // 注意：removeRequestHeader 不是标准方法，我们无法直接移除请求头
   if (modifiedOptions.headers) {
-    // 清除现有请求头
     try {
-      // 遍历现有请求头并移除
-      const headerLines = this.getAllRequestHeaders().split('\r\n');
-      headerLines.forEach(line => {
-        if (line) {
-          const [name] = line.split(': ');
-          this.removeRequestHeader(name);
-        }
-      });
-      
-      // 添加修改后的请求头
+      // 只能添加或覆盖请求头
       Object.keys(modifiedOptions.headers).forEach(name => {
         this.setRequestHeader(name, modifiedOptions.headers[name]);
       });
@@ -1017,5 +1057,4 @@ window.postMessage({
   action: 'injectedSuccessfully'
 }, '*');
 
-// 立即执行函数闭合括号
 })();
