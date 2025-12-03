@@ -1,9 +1,11 @@
 // injected.js - 注入到页面上下文的脚本，用于拦截网络请求
 
-// 保存原始方法的引用
-const originalFetch = window.fetch;
-const originalXHROpen = XMLHttpRequest.prototype.open;
-const originalXHRSend = XMLHttpRequest.prototype.send;
+// 立即执行函数，确保拦截代码尽可能早地执行
+(function() {
+  // 保存原始方法的引用
+  window.__devHelperOriginalFetch = window.__devHelperOriginalFetch || window.fetch;
+  window.__devHelperOriginalXHROpen = window.__devHelperOriginalXHROpen || XMLHttpRequest.prototype.open;
+  window.__devHelperOriginalXHRSend = window.__devHelperOriginalXHRSend || XMLHttpRequest.prototype.send;
 
 // Mock规则存储
 let mockRules = [];
@@ -31,9 +33,9 @@ function isUrlAllowed(url) {
     return true;
   }
   
-  // 如果没有配置允许的URL，则不允许任何URL
+  // 如果没有配置允许的URL，则允许所有URL
   if (!allowedUrls || allowedUrls.length === 0) {
-    return false;
+    return true;
   }
   
   // 检查URL是否匹配任何允许的URL
@@ -111,11 +113,6 @@ function removeCss() {
 
 // 注入JS
 function injectJs(js) {
-  // 检查URL是否允许
-  if (!isUrlAllowed(window.location.href)) {
-    return;
-  }
-  
   if (!js) return;
   
   // 如果已有脚本，先移除
@@ -133,12 +130,6 @@ function injectJs(js) {
   (document.head || document.documentElement).appendChild(injectedScript);
   
   injectedJsContent = js;
-  
-  // 发送自定义事件，通知页面JS注入成功
-  const event = new CustomEvent('devHelperJsInjected', {
-    detail: { success: true, message: 'DevHelper JS注入成功' }
-  });
-  window.dispatchEvent(event);
 }
 
 // 移除JS
@@ -150,83 +141,84 @@ function removeJs() {
   }
 }
 
-// 注入CSS
-function injectCss(css) {
-  // 检查URL是否允许
-  if (!isUrlAllowed(window.location.href)) {
-    return;
-  }
-  
-  if (!css) return;
-  
-  // 如果已有样式，先移除
-  if (injectedStyle) {
-    removeCss();
-  }
-  
-  // 创建style标签
-  injectedStyle = document.createElement('style');
-  injectedStyle.type = 'text/css';
-  injectedStyle.textContent = css;
-  injectedStyle.id = 'devHelperInjectedCss';
-  
-  // 注入到head
-  (document.head || document.documentElement).appendChild(injectedStyle);
-  
-  injectedCssContent = css;
-}
-
-// 移除CSS
-function removeCss() {
-  if (injectedStyle) {
-    injectedStyle.remove();
-    injectedStyle = null;
-    injectedCssContent = '';
-  
-  }
-}
-
 // 查找匹配的Mock规则
 function findMatchingRule(url, method) {
   // 如果Mock功能未启用，直接返回null
-  if (!isMockEnabled || !url) return null;
+  if (!isMockEnabled || !url) {
+    return null;
+  }
   
-  return mockRules.find(rule => {
+  // 只拦截后端请求，排除部分常见的前端资源请求（保留CSS和JS以便支持拦截）
+  const frontEndExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.otf', '.eot'];
+  const urlLower = url.toLowerCase();
+  
+  // 检查是否为前端资源请求
+  for (const ext of frontEndExtensions) {
+    if (urlLower.endsWith(ext)) {
+      return null; // 跳过前端资源请求
+    }
+  }
+  
+  // 遍历所有规则，记录匹配结果
+  for (let i = 0; i < mockRules.length; i++) {
+    const rule = mockRules[i];
+    
     // 检查规则是否启用
-    if (!rule.enabled) return false;
+    if (!rule.enabled) {
+      continue;
+    }
     
     // 检查HTTP方法
     if (rule.method && rule.method.toUpperCase() !== method.toUpperCase() && rule.method !== 'ALL') {
-      return false;
+      continue;
     }
     
     // 检查URL匹配
     const urlPattern = rule.urlPattern || rule.url;
-    if (!urlPattern) return false;
+    if (!urlPattern) {
+      continue;
+    }
     
     // 根据匹配类型进行URL匹配
     const patternType = rule.urlPatternType || 'contains';
+    let isMatch = false;
     
-    switch (patternType) {
-      case 'contains':
-        return url.includes(urlPattern);
-      case 'exact':
-        return url === urlPattern;
-      case 'startsWith':
-        return url.startsWith(urlPattern);
-      case 'endsWith':
-        return url.endsWith(urlPattern);
-      case 'regex':
-        try {
-          const regex = new RegExp(urlPattern);
-          return regex.test(url);
-        } catch (e) {
-          return false;
-        }
-      default:
-        return url.includes(urlPattern);
+    try {
+      switch (patternType) {
+        case 'contains':
+          isMatch = url.includes(urlPattern);
+          break;
+        case 'exact':
+          isMatch = url === urlPattern;
+          break;
+        case 'startsWith':
+          isMatch = url.startsWith(urlPattern);
+          break;
+        case 'endsWith':
+          isMatch = url.endsWith(urlPattern);
+          break;
+        case 'regex':
+          try {
+            const regex = new RegExp(urlPattern);
+            isMatch = regex.test(url);
+          } catch (e) {
+            console.error('[DevHelper] 正则表达式错误:', rule.urlPattern, e);
+            isMatch = false;
+          }
+          break;
+        default:
+          isMatch = url.includes(urlPattern);
+      }
+      
+      if (isMatch) {
+        return rule;
+      }
+    } catch (e) {
+      console.error('[DevHelper] 规则匹配错误:', rule.name || rule.id, e);
     }
-  });
+  }
+  
+  return null;
 }
 
 // 创建Mock响应
@@ -257,8 +249,22 @@ function createResponse(rule) {
     }
   }
   
-  // 构建fetch响应
+  // 构建fetch响应，添加默认响应头
   const headers = new Headers(rule.headers || {});
+  
+  // 添加默认响应头
+  if (!headers.has('Content-Type') && !headers.has('content-type')) {
+    // Content-Type将在后续自动检测并设置
+  }
+  if (!headers.has('Cache-Control')) {
+    headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  }
+  if (!headers.has('Pragma')) {
+    headers.set('Pragma', 'no-cache');
+  }
+  if (!headers.has('Expires')) {
+    headers.set('Expires', '0');
+  }
   
   // 确定内容类型
   let contentType = headers.get('content-type');
@@ -373,106 +379,278 @@ function executeRequestInterceptors(requestUrl, method, options) {
 }
 
 // 重写fetch方法
-window.fetch = function(url, options = {}) {
-  // 确保url是字符串
-  const originalUrl = typeof url === 'string' ? url : url.url;
-  const method = (options.method || 'GET').toUpperCase();
-  
-  // 检查URL是否允许
-  const urlAllowed = isUrlAllowed(originalUrl);
-  
-  // 如果URL不允许，直接调用原始fetch，不做任何拦截
-  if (!urlAllowed) {
-    return originalFetch.call(this, url, options);
-  }
-  
-  // 执行请求前拦截器
-  const { url: modifiedUrl, options: modifiedOptions } = executeRequestInterceptors(originalUrl, method, options);
-  
-  // 查找匹配的规则
-  const matchingRule = findMatchingRule(modifiedUrl, method);
-  
-  // 记录所有请求，根据是否匹配Mock规则标记
-  const requestData = modifiedOptions.body || {};
-  const isMocked = !!matchingRule;
-  recordRequest(modifiedUrl, method, requestData, isMocked, matchingRule);
-  
-  if (matchingRule) {
-    // 发送拦截事件到content script
-    window.postMessage({
-      devHelper: true,
-      action: 'requestIntercepted',
-      data: {
-        url: modifiedUrl,
-        method: method,
-        ruleId: matchingRule.id,
-        ruleName: matchingRule.name
-      }
-    }, '*');
+Object.defineProperty(window, 'fetch', {
+  configurable: true,
+  writable: true,
+  value: function(url, options = {}) {
+    // 确保url是字符串
+    const originalUrl = typeof url === 'string' ? url : (url instanceof Request ? url.url : String(url));
+    const method = (options.method || (url instanceof Request ? url.method : 'GET')).toUpperCase();
     
-    // 返回Mock响应并记录
-    return createMockResponse(matchingRule).then(response => {
-      // 克隆响应以读取内容
-      const clonedResponse = response.clone();
+    // 检查并修复Mixed Content问题
+    let fixedUrl = originalUrl;
+    if (window.location.protocol === 'https:' && originalUrl.startsWith('http://')) {
+      console.warn('[DevHelper] 检测到Mixed Content请求，尝试升级到HTTPS:', originalUrl);
+      fixedUrl = originalUrl.replace('http://', 'https://');
+    }
+    
+    // 如果Mock功能未启用，直接调用原始方法
+    if (!isMockEnabled) {
+      // 如果URL被修复，使用修复后的URL
+      if (fixedUrl !== originalUrl) {
+        if (url instanceof Request) {
+          // 创建一个新的Request对象
+          const newRequest = new Request(fixedUrl, {
+            method: url.method,
+            headers: url.headers,
+            body: url.body,
+            mode: url.mode,
+            credentials: url.credentials,
+            cache: url.cache,
+            redirect: url.redirect,
+            referrer: url.referrer,
+            integrity: url.integrity
+          });
+          return window.__devHelperOriginalFetch.call(this, newRequest);
+        } else {
+          return window.__devHelperOriginalFetch.call(this, fixedUrl, options);
+        }
+      }
+      // 如果url是Request对象，不需要传递options参数
+      return window.__devHelperOriginalFetch.call(this, url, url instanceof Request ? undefined : options);
+    }
+    
+    // 检查URL是否允许
+    const urlAllowed = isUrlAllowed(fixedUrl);
+    
+    // 如果URL不允许，直接调用原始fetch，不做任何拦截
+    if (!urlAllowed) {
+      // 如果URL被修复，使用修复后的URL
+      if (fixedUrl !== originalUrl) {
+        if (url instanceof Request) {
+          // 创建一个新的Request对象
+          const newRequest = new Request(fixedUrl, {
+            method: url.method,
+            headers: url.headers,
+            body: url.body,
+            mode: url.mode,
+            credentials: url.credentials,
+            cache: url.cache,
+            redirect: url.redirect,
+            referrer: url.referrer,
+            integrity: url.integrity
+          });
+          return window.__devHelperOriginalFetch.call(this, newRequest);
+        } else {
+          return window.__devHelperOriginalFetch.call(this, fixedUrl, options);
+        }
+      }
+      // 如果url是Request对象，不需要传递options参数
+      return window.__devHelperOriginalFetch.call(this, url, url instanceof Request ? undefined : options);
+    }
+    
+    // 执行请求前拦截器
+    const { url: modifiedUrl, options: modifiedOptions } = executeRequestInterceptors(fixedUrl, method, options);
+    
+    // 查找匹配的规则
+    const matchingRule = findMatchingRule(modifiedUrl, method);
+    
+    // 记录所有请求，根据是否匹配Mock规则标记
+    const requestData = modifiedOptions.body || {};
+    const isMocked = !!matchingRule;
+    recordRequest(modifiedUrl, method, requestData, isMocked, matchingRule);
+    
+    if (matchingRule) {
+      // 输出匹配到拦截规则的日志
+      console.log(`[DevHelper] 匹配到拦截规则: ${matchingRule.name} (${matchingRule.id}) - ${method} ${modifiedUrl}`);
+      // 发送拦截事件到content script
+      window.postMessage({
+        devHelper: true,
+        action: 'requestIntercepted',
+        data: {
+          url: modifiedUrl,
+          method: method,
+          ruleId: matchingRule.id,
+          ruleName: matchingRule.name
+        }
+      }, '*');
       
-      // 尝试解析响应内容
-      return clonedResponse.text().then(responseText => {
-        // 发送响应记录到content script
+      // 返回Mock响应并记录
+      try {
+        const mockResponsePromise = createMockResponse(matchingRule);
+        
+        return mockResponsePromise.then(response => {
+          // 克隆响应以读取内容
+          const clonedResponse = response.clone();
+          
+          // 尝试解析响应内容
+          return clonedResponse.text().then(responseText => {
+            // 发送响应记录到content script
+            window.postMessage({
+              devHelper: true,
+              action: 'responseRecorded',
+              data: {
+                url: modifiedUrl,
+                method: method,
+                status: response.status,
+                statusText: response.statusText,
+                responseText: responseText,
+                timestamp: Date.now()
+              }
+            }, '*');
+            
+            return response;
+          }).catch(err => {
+            // 静默失败，不干扰用户
+            console.error('[DevHelper] 解析Mock响应内容时出错:', err);
+            return response;
+          });
+        }).catch(err => {
+          console.error('[DevHelper] createMockResponse执行出错:', err);
+          // 如果Mock响应创建失败，回退到原始请求
+          // 如果URL被修复，使用修复后的URL
+          if (fixedUrl !== originalUrl) {
+            if (url instanceof Request) {
+              // 创建一个新的Request对象
+              const newRequest = new Request(fixedUrl, {
+                method: url.method,
+                headers: url.headers,
+                body: url.body,
+                mode: url.mode,
+                credentials: url.credentials,
+                cache: url.cache,
+                redirect: url.redirect,
+                referrer: url.referrer,
+                integrity: url.integrity
+              });
+              return window.__devHelperOriginalFetch.call(this, newRequest);
+            } else {
+              return window.__devHelperOriginalFetch.call(this, fixedUrl, options);
+            }
+          }
+          // 如果url是Request对象，不需要传递options参数
+          return window.__devHelperOriginalFetch.call(this, url, url instanceof Request ? undefined : options);
+        });
+      } catch (err) {
+        console.error('[DevHelper] Mock响应处理发生异常:', err);
+        // 如果发生异常，回退到原始请求
+        // 如果URL被修复，使用修复后的URL
+        if (fixedUrl !== originalUrl) {
+          if (url instanceof Request) {
+            // 创建一个新的Request对象
+            const newRequest = new Request(fixedUrl, {
+              method: url.method,
+              headers: url.headers,
+              body: url.body,
+              mode: url.mode,
+              credentials: url.credentials,
+              cache: url.cache,
+              redirect: url.redirect,
+              referrer: url.referrer,
+              integrity: url.integrity
+            });
+            return window.__devHelperOriginalFetch.call(this, newRequest);
+          } else {
+            return window.__devHelperOriginalFetch.call(this, fixedUrl, options);
+          }
+        }
+        // 如果url是Request对象，不需要传递options参数
+        return window.__devHelperOriginalFetch.call(this, url, url instanceof Request ? undefined : options);
+      }
+    }
+    
+    // 无匹配规则，调用原始fetch并记录响应
+    let fetchUrl, finalUrlForLogging;
+    
+    // 准备fetch的URL和选项
+    if (fixedUrl !== originalUrl) {
+      finalUrlForLogging = fixedUrl;
+      if (modifiedUrl instanceof Request) {
+        // 创建一个新的Request对象
+        fetchUrl = new Request(fixedUrl, {
+          method: modifiedUrl.method,
+          headers: modifiedUrl.headers,
+          body: modifiedUrl.body,
+          mode: modifiedUrl.mode,
+          credentials: modifiedUrl.credentials,
+          cache: modifiedUrl.cache,
+          redirect: modifiedUrl.redirect,
+          referrer: modifiedUrl.referrer,
+          integrity: modifiedUrl.integrity
+        });
+      } else {
+        fetchUrl = fixedUrl;
+      }
+    } else {
+      finalUrlForLogging = modifiedUrl instanceof Request ? modifiedUrl.url : modifiedUrl;
+      fetchUrl = modifiedUrl;
+    }
+    
+    // 调用原始fetch
+    // 如果fetchUrl是Request对象，不需要传递options参数
+    return window.__devHelperOriginalFetch.call(this, fetchUrl, fetchUrl instanceof Request ? undefined : modifiedOptions)
+      .then(response => {
+        // 克隆响应以读取内容
+        const clonedResponse = response.clone();
+        
+        // 尝试解析响应内容
+        clonedResponse.text().then(responseText => {
+          // 发送响应记录到content script
+          window.postMessage({
+            devHelper: true,
+            action: 'responseRecorded',
+            data: {
+              url: finalUrlForLogging,
+              method: method,
+              status: response.status,
+              statusText: response.statusText,
+              responseText: responseText,
+              timestamp: Date.now()
+            }
+          }, '*');
+        }).catch(err => {
+          // 静默失败，不干扰用户
+        });
+        
+        return response;
+      })
+      .catch(err => {
+        // 处理网络错误
+        console.error('[DevHelper] 网络请求失败:', err);
+        
+        // 记录错误响应
         window.postMessage({
           devHelper: true,
           action: 'responseRecorded',
           data: {
-            url: modifiedUrl,
+            url: finalUrlForLogging,
             method: method,
-            status: response.status,
-            statusText: response.statusText,
-            responseText: responseText,
+            status: 0,
+            statusText: err.message || 'Network Error',
+            responseText: `[Network Error: ${err.message}]`,
             timestamp: Date.now()
           }
         }, '*');
         
-        return response;
-      }).catch(err => {
-        // 静默失败，不干扰用户
-        return response;
+        // 重新抛出错误，让页面自己处理
+        throw err;
       });
-    });
   }
-  
-  // 无匹配规则，调用原始fetch并记录响应
-  return originalFetch.call(this, modifiedUrl, modifiedOptions).then(response => {
-    // 克隆响应以读取内容
-    const clonedResponse = response.clone();
-    
-    // 尝试解析响应内容
-    clonedResponse.text().then(responseText => {
-      // 发送响应记录到content script
-      window.postMessage({
-        devHelper: true,
-        action: 'responseRecorded',
-        data: {
-          url: modifiedUrl,
-          method: method,
-          status: response.status,
-          statusText: response.statusText,
-          responseText: responseText,
-          timestamp: Date.now()
-        }
-      }, '*');
-    }).catch(err => {
-      // 静默失败，不干扰用户
-    });
-    
-    return response;
-  });
-};
+});
 
 // 重写XMLHttpRequest的open方法
 XMLHttpRequest.prototype.open = function(method, url, ...args) {
-  this._devHelperMethod = method;
-  this._devHelperUrl = url;
+  // 检查并修复Mixed Content问题
+  let fixedUrl = url;
+  if (window.location.protocol === 'https:' && url.startsWith('http://')) {
+    console.warn('[DevHelper] 检测到Mixed Content请求，尝试升级到HTTPS:', url);
+    fixedUrl = url.replace('http://', 'https://');
+  }
   
-  return originalXHROpen.call(this, method, url, ...args);
+  this._devHelperMethod = method;
+  this._devHelperUrl = fixedUrl;
+  
+  return window.__devHelperOriginalXHROpen.call(this, method, fixedUrl, ...args);
 };
 
 // 重写XMLHttpRequest的send方法
@@ -486,15 +664,15 @@ XMLHttpRequest.prototype.send = function(...args) {
   
   // 如果URL不允许，直接调用原始send，不做任何拦截
   if (!urlAllowed) {
-    return originalXHRSend.call(this, ...args);
+    return window.__devHelperOriginalXHRSend.call(this, ...args);
   }
   
   // 执行请求前拦截器
   const headers = {};
   // 提取XHR请求头
-  if (this.getAllResponseHeaders) {
+  if (this.getAllRequestHeaders) {
     try {
-      const headerLines = this.getAllResponseHeaders().split('\r\n');
+      const headerLines = this.getAllRequestHeaders().split('\r\n');
       headerLines.forEach(line => {
         if (line) {
           const [name, value] = line.split(': ');
@@ -523,11 +701,12 @@ XMLHttpRequest.prototype.send = function(...args) {
   // 查找匹配的规则
   const matchingRule = findMatchingRule(url, method);
   
-  // 记录请求，根据是否匹配Mock规则标记
-  const isMocked = !!matchingRule;
-  recordRequest(url, method, requestData, isMocked, matchingRule);
-  
   if (matchingRule) {
+    // 输出匹配到拦截规则的日志
+    console.log(`[DevHelper] 匹配到拦截规则: ${matchingRule.name} (${matchingRule.id}) - ${method} ${url}`);
+    // 记录请求，根据是否匹配Mock规则标记
+    const isMocked = !!matchingRule;
+    recordRequest(url, method, requestData, isMocked, matchingRule);
     // 发送拦截事件到content script
     window.postMessage({
       devHelper: true,
@@ -548,7 +727,7 @@ XMLHttpRequest.prototype.send = function(...args) {
         const responseText = typeof response === 'string' ? response : JSON.stringify(response);
         
         // 设置响应属性
-        Object.defineProperties(this, {
+        const properties = {
           readyState: {
             value: 4,
             writable: false
@@ -564,12 +743,66 @@ XMLHttpRequest.prototype.send = function(...args) {
           responseText: {
             value: responseText,
             writable: false
-          },
-          response: {
+          }
+        };
+        
+        // 根据responseType设置response属性
+        const responseType = this.responseType || '';
+        if (responseType === 'json') {
+          try {
+            properties.response = {
+              value: typeof matchingRule.response === 'string' ? JSON.parse(matchingRule.response) : matchingRule.response,
+              writable: false
+            };
+          } catch (e) {
+            properties.response = {
+              value: matchingRule.response,
+              writable: false
+            };
+          }
+        } else if (responseType === 'arraybuffer') {
+          // 将responseText转换为ArrayBuffer
+          const encoder = new TextEncoder();
+          properties.response = {
+            value: encoder.encode(responseText),
+            writable: false
+          };
+        } else if (responseType === 'blob') {
+          // 创建Blob对象
+          properties.response = {
+            value: new Blob([responseText], { type: 'application/json' }),
+            writable: false
+          };
+        } else if (responseType === 'document') {
+          // 尝试解析为XML文档
+          try {
+            const parser = new DOMParser();
+            properties.response = {
+              value: parser.parseFromString(responseText, 'text/xml'),
+              writable: false
+            };
+          } catch (e) {
+            properties.response = {
+              value: null,
+              writable: false
+            };
+          }
+        } else {
+          // 默认情况下，response与responseText相同
+          properties.response = {
             value: responseText,
             writable: false
-          }
-        });
+          };
+        }
+        
+        // 设置responseURL属性
+        properties.responseURL = {
+          value: url,
+          writable: false
+        };
+        
+        // 设置所有响应属性
+        Object.defineProperties(this, properties);
         
         // 发送响应记录到content script
         window.postMessage({
@@ -600,6 +833,28 @@ XMLHttpRequest.prototype.send = function(...args) {
           const loadEvent = new Event('load');
           this.dispatchEvent(loadEvent);
         }
+        
+        // 触发onloadend事件
+        if (this.onloadend) {
+          this.onloadend();
+        }
+        
+        // 触发loadend事件（通过addEventListener注册的）
+        if (this.addEventListener) {
+          const loadendEvent = new Event('loadend');
+          this.dispatchEvent(loadendEvent);
+        }
+        
+        // 触发onprogress事件
+        if (this.onprogress) {
+          this.onprogress({ loaded: 100, total: 100 });
+        }
+        
+        // 触发progress事件（通过addEventListener注册的）
+        if (this.addEventListener) {
+          const progressEvent = new ProgressEvent('progress', { loaded: 100, total: 100 });
+          this.dispatchEvent(progressEvent);
+        }
       } catch (error) {
         // 静默失败，不干扰用户
       }
@@ -613,7 +868,7 @@ XMLHttpRequest.prototype.send = function(...args) {
     // 清除现有请求头
     try {
       // 遍历现有请求头并移除
-      const headerLines = this.getAllResponseHeaders().split('\r\n');
+      const headerLines = this.getAllRequestHeaders().split('\r\n');
       headerLines.forEach(line => {
         if (line) {
           const [name] = line.split(': ');
@@ -622,12 +877,12 @@ XMLHttpRequest.prototype.send = function(...args) {
       });
       
       // 添加修改后的请求头
-  Object.keys(modifiedOptions.headers).forEach(name => {
-    this.setRequestHeader(name, modifiedOptions.headers[name]);
-  });
-} catch (e) {
-  // 静默失败，不干扰用户
-}
+      Object.keys(modifiedOptions.headers).forEach(name => {
+        this.setRequestHeader(name, modifiedOptions.headers[name]);
+      });
+    } catch (e) {
+      // 静默失败，不干扰用户
+    }
   }
   
   // 为原始XHR请求添加响应记录
@@ -635,6 +890,30 @@ XMLHttpRequest.prototype.send = function(...args) {
   this.onreadystatechange = function() {
     // 当请求完成时
     if (this.readyState === 4) {
+      // 根据responseType获取响应内容
+      let responseContent = '';
+      try {
+        switch (this.responseType) {
+          case 'json':
+            responseContent = JSON.stringify(this.response);
+            break;
+          case 'arraybuffer':
+            // 简单记录类型，不转换内容
+            responseContent = '[ArrayBuffer]';
+            break;
+          case 'blob':
+            // 简单记录类型，不转换内容
+            responseContent = '[Blob]';
+            break;
+          default:
+            // 默认为text或空字符串，直接使用responseText
+            responseContent = this.responseText;
+        }
+      } catch (e) {
+        // 如果获取响应内容失败，记录错误信息
+        responseContent = '[Error getting response content: ' + e.message + ']';
+      }
+      
       // 发送响应记录到content script
       window.postMessage({
         devHelper: true,
@@ -644,7 +923,7 @@ XMLHttpRequest.prototype.send = function(...args) {
           method: method,
           status: this.status,
           statusText: this.statusText,
-          responseText: this.responseText,
+          responseText: responseContent,
           timestamp: Date.now()
         }
       }, '*');
@@ -659,6 +938,30 @@ XMLHttpRequest.prototype.send = function(...args) {
   // 也监听load事件，确保捕获所有完成情况
   const originalOnload = this.onload;
   this.onload = function() {
+    // 根据responseType获取响应内容
+    let responseContent = '';
+    try {
+      switch (this.responseType) {
+        case 'json':
+          responseContent = JSON.stringify(this.response);
+          break;
+        case 'arraybuffer':
+          // 简单记录类型，不转换内容
+          responseContent = '[ArrayBuffer]';
+          break;
+        case 'blob':
+          // 简单记录类型，不转换内容
+          responseContent = '[Blob]';
+          break;
+        default:
+          // 默认为text或空字符串，直接使用responseText
+          responseContent = this.responseText;
+      }
+    } catch (e) {
+      // 如果获取响应内容失败，记录错误信息
+      responseContent = '[Error getting response content: ' + e.message + ']';
+    }
+    
     // 发送响应记录到content script
     window.postMessage({
       devHelper: true,
@@ -668,7 +971,7 @@ XMLHttpRequest.prototype.send = function(...args) {
         method: method,
         status: this.status,
         statusText: this.statusText,
-        responseText: this.responseText,
+        responseText: responseContent,
         timestamp: Date.now()
       }
     }, '*');
@@ -679,8 +982,33 @@ XMLHttpRequest.prototype.send = function(...args) {
     }
   };
   
+  // 监听error事件，捕获网络错误
+  const originalOnerror = this.onerror;
+  this.onerror = function() {
+    console.error('[DevHelper] XHR网络请求失败:', url);
+    
+    // 发送错误响应记录到content script
+    window.postMessage({
+      devHelper: true,
+      action: 'responseRecorded',
+      data: {
+        url: url,
+        method: method,
+        status: 0,
+        statusText: 'Network Error',
+        responseText: '[Network Error]',
+        timestamp: Date.now()
+      }
+    }, '*');
+    
+    // 调用原始的回调
+    if (originalOnerror) {
+      originalOnerror.apply(this, arguments);
+    }
+  };
+  
   // 无匹配规则，调用原始send
-  return originalXHRSend.call(this, requestData);
+  return window.__devHelperOriginalXHRSend.call(this, requestData);
 };
 
 // 通知content script注入成功
@@ -688,3 +1016,6 @@ window.postMessage({
   devHelper: true,
   action: 'injectedSuccessfully'
 }, '*');
+
+// 立即执行函数闭合括号
+})();

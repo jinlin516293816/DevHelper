@@ -23,7 +23,6 @@ function injectScript() {
         const script = document.createElement('script');
         script.src = chrome.runtime.getURL('injected.js');
         script.onerror = function() {
-          // 静默失败，不干扰用户
         };
         
         // 注入到head
@@ -62,29 +61,31 @@ function injectScript() {
           }, '*');
           
           // 如果CSS注入功能是启用状态，自动注入CSS
-        if (cssInjectionStatus && injectedCss) {
-          window.postMessage({
-            devHelper: true,
-            action: 'injectCss',
-            css: injectedCss
-          }, '*');
-        }
-        
-        // 如果JS注入功能是启用状态，自动注入JS
-        const injectedJs = result.injectedJs || '';
-        const jsInjectionStatus = result.jsInjectionStatus || false;
-        if (jsInjectionStatus && injectedJs) {
-          window.postMessage({
-            devHelper: true,
-            action: 'injectJs',
-            js: injectedJs
-          }, '*');
-        }
+          if (cssInjectionStatus && injectedCss) {
+            window.postMessage({
+              devHelper: true,
+              action: 'injectCss',
+              css: injectedCss
+            }, '*');
+          }
+          
+          // 如果JS注入功能是启用状态，自动注入JS
+          const injectedJs = result.injectedJs || '';
+          const jsInjectionStatus = result.jsInjectionStatus || false;
+          if (jsInjectionStatus && injectedJs) {
+            window.postMessage({
+              devHelper: true,
+              action: 'injectJs',
+              js: injectedJs
+            }, '*');
+          }
         };
       } catch (error) {
-        // 静默失败，不干扰用户
+        console.error('[DevHelper] 注入脚本失败:', error);
       }
     });
+  } else {
+    console.error('[DevHelper] chrome.storage不可用');
   }
 }
 
@@ -157,7 +158,7 @@ function loadAndSendMockRules() {
 }
 
 // 初始化时注入脚本
-// 无论run_at设置为什么，都确保在DOM准备好后再注入，同时保证尽可能早地注入
+// 无论run_at设置什么，都确保在DOM准备好后再注入，同时保证尽可能早地注入
 function initInject() {
   if (document.head || document.documentElement) {
     injectScript();
@@ -178,6 +179,7 @@ initInject();
 
 // 与popup和background通信
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  
   // 确保消息有action属性
   if (!message.action) {
     sendResponse({ 
@@ -326,12 +328,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: true, message: '已收到标签页更新通知' });
       break;
     
+    case 'logMessage':
+      // 显示来自后台的日志消息
+      sendResponse({ success: true });
+      break;
+      
     default:
       sendResponse({ 
         success: false, 
         error: '未知操作',
         unknownAction: message.action,
-        availableActions: ['getPageDetails', 'executeScript', 'highlightElement', 'updateMockRules', 'toggleMock', 'tabUpdated']
+        availableActions: ['getPageDetails', 'executeScript', 'highlightElement', 'updateMockRules', 'toggleMock', 'tabUpdated', 'logMessage']
       });
   }
   
@@ -351,9 +358,9 @@ function isUrlAllowed(url, settings) {
     return true;
   }
   
-  // 如果允许的网址列表为空，则不允许任何URL
+  // 如果允许的网址列表为空，则允许所有URL
   if (!settings.allowedUrls || settings.allowedUrls.trim() === '') {
-    return false;
+    return true;
   }
   
   // 将允许的网址列表分割为数组
@@ -492,6 +499,27 @@ if (typeof chrome !== 'undefined' && chrome.storage) {
           }, '*');
         }
       }
+      
+      // 检查是否是mockEnabled设置变化
+      if (changes.settings.oldValue && changes.settings.oldValue.mockEnabled !== newSettings.mockEnabled) {
+        // 发送mockEnabled状态更新给injected.js
+        window.postMessage({
+          devHelper: true,
+          action: 'toggleMock',
+          enabled: newSettings.mockEnabled
+        }, '*');
+      }
+    }
+    
+    // 处理mockRules变化
+    if (changes.mockRules) {
+      const newRules = changes.mockRules.newValue || [];
+      // 发送更新后的Mock规则给injected.js
+      window.postMessage({
+        devHelper: true,
+        action: 'updateMockRules',
+        rules: newRules
+      }, '*');
     }
   });
 }

@@ -37,8 +37,7 @@ function createContextMenus() {
 }
 
 // 网络请求监控
-let networkCaptureActive = false;
-let capturedRequests = [];
+// 网络捕获相关变量已移除
 
 // 请求日志存储 - 保存所有页面请求
 let requestLogs = [];
@@ -46,8 +45,11 @@ const MAX_REQUEST_LOGS = 5000; // 限制日志数量，避免内存溢出
 let currentLogId = 1; // 用于生成递增的日志ID
 
 // Mock功能相关状态
-let mockEnabled = false;
+let mockEnabled = true; // 默认启用Mock功能，与content.js保持一致
 let mockRules = [];
+
+// 资源拦截功能相关状态
+let resourceInterceptors = [];
 
 // 存储用户偏好设置
 const defaultSettings = {
@@ -83,18 +85,24 @@ chrome.runtime.onInstalled.addListener((details) => {
         mockRules = result.mockRules;
       }
     });
+    
+    // 初始化资源拦截规则存储
+    chrome.storage.local.get(['resourceInterceptors'], (result) => {
+      if (!result.resourceInterceptors) {
+        chrome.storage.local.set({ resourceInterceptors: [] });
+      } else {
+        resourceInterceptors = result.resourceInterceptors;
+      }
+    });
   }
-  
-  // 注册网络请求监听器
-  setupNetworkListeners();
   
   // 创建右键菜单
   createContextMenus();
 });
 
-// 从存储中加载Mock规则和设置
+// 从存储中加载Mock规则、设置和资源拦截规则
 if (typeof chrome !== 'undefined' && chrome.storage) {
-  chrome.storage.local.get(['mockRules', 'settings'], (result) => {
+  chrome.storage.local.get(['mockRules', 'settings', 'resourceInterceptors'], (result) => {
     if (result.mockRules) {
       mockRules = result.mockRules;
     }
@@ -104,7 +112,11 @@ if (typeof chrome !== 'undefined' && chrome.storage) {
         mockEnabled = result.settings.mockEnabled;
       }
     }
-    // 已在上面处理设置加载
+    if (result.resourceInterceptors) {
+      resourceInterceptors = result.resourceInterceptors;
+    }
+    
+    // 网络监听器相关逻辑已移除
   });
 }
 
@@ -142,6 +154,11 @@ if (typeof chrome !== 'undefined' && chrome.storage) {
             }
           });
         });
+      }
+      
+      if (changes.resourceInterceptors && changes.resourceInterceptors.newValue) {
+        resourceInterceptors = changes.resourceInterceptors.newValue;
+        console.log('资源拦截规则已更新，当前规则数量:', resourceInterceptors.length);
       }
     }
   });
@@ -208,107 +225,7 @@ chrome.commands.onCommand.addListener((command) => {
   }
 });
 
-// 设置网络请求监听器
-function setupNetworkListeners() {
-  // 监听网络请求（用于捕获和Mock）
-  chrome.webRequest.onBeforeRequest.addListener(
-    (details) => {
-      // 检查URL是否允许
-      const urlAllowed = isUrlAllowed(details.url);
-      
-      // 只有允许的URL才执行捕获和Mock拦截
-      if (urlAllowed) {
-        // 捕获请求
-        if (networkCaptureActive) {
-          capturedRequests.push({
-            url: details.url,
-            method: details.method,
-            type: details.type,
-            timestamp: Date.now()
-          });
-          
-          // 限制捕获的请求数量，避免内存溢出
-          if (capturedRequests.length > 1000) {
-            capturedRequests.shift();
-          }
-        }
-        
-        // Mock拦截逻辑
-        if (mockEnabled) {
-          const mockRule = findMatchingMockRule(details.url, details.method);
-          if (mockRule) {
-            console.log('匹配到Mock规则:', mockRule.name, 'URL:', details.url);
-            
-            // 根据规则设置或自动检测内容类型
-        let contentType = 'application/json';
-        let responseText = mockRule.response;
-        
-        // 如果是对象，默认使用JSON格式
-        if (typeof responseText === 'object') {
-          responseText = JSON.stringify(responseText);
-        }
-        // 如果是字符串，根据内容自动检测类型
-        else if (typeof responseText === 'string') {
-          // 检测CSS
-          if (responseText.trim().startsWith('/*') || responseText.trim().startsWith('body') || 
-              responseText.trim().startsWith('.') || responseText.trim().startsWith('#')) {
-            contentType = 'text/css';
-          }
-          // 检测JavaScript
-          else if (responseText.trim().startsWith('//') || responseText.trim().startsWith('/*') ||
-                   responseText.trim().startsWith('function') || responseText.trim().startsWith('const') ||
-                   responseText.trim().startsWith('let') || responseText.trim().startsWith('var') ||
-                   responseText.trim().startsWith('if') || responseText.trim().startsWith('for') ||
-                   responseText.trim().startsWith('while') || responseText.trim().startsWith('return')) {
-            contentType = 'application/javascript';
-          }
-          // 检测HTML
-          else if (responseText.trim().startsWith('<')) {
-            contentType = 'text/html';
-          }
-          // 检测JSON字符串
-          else {
-            try {
-              JSON.parse(responseText);
-              contentType = 'application/json';
-            } catch (e) {
-              // 默认文本类型
-              contentType = 'text/plain';
-            }
-          }
-        }
-        
-        // 阻止原始请求，返回Mock数据
-        return {
-          redirectUrl: `data:${contentType};charset=utf-8,${encodeURIComponent(responseText)}`
-        };
-          }
-        }
-      }
-    },
-    { urls: ['<all_urls>'] },
-    ['blocking'] // 需要blocking权限来拦截请求
-  );
-  
-  // 监听响应
-  chrome.webRequest.onCompleted.addListener(
-    (details) => {
-      if (networkCaptureActive) {
-        // 查找匹配的请求并更新响应信息
-        const requestIndex = capturedRequests.findIndex(
-          req => req.url === details.url && req.timestamp === details.timeStamp
-        );
-        
-        if (requestIndex !== -1) {
-          capturedRequests[requestIndex].statusCode = details.statusCode;
-          capturedRequests[requestIndex].responseHeaders = details.responseHeaders;
-        }
-      }
-    },
-    { urls: ['<all_urls>'] },
-    ['responseHeaders']
-  );
-}
+// 设置网络请求监听器函数已移除
 
 // 检查URL是否在允许的列表中
 function isUrlAllowed(url) {
@@ -317,9 +234,9 @@ function isUrlAllowed(url) {
     return true;
   }
   
-  // 如果允许的网址列表为空，则不允许任何URL
+  // 如果允许的网址列表为空，则允许所有URL
   if (!settings.allowedUrls || settings.allowedUrls.trim() === '') {
-    return false;
+    return true;
   }
   
   // 将允许的网址列表分割为数组
@@ -334,6 +251,8 @@ function isUrlAllowed(url) {
   
   return false;
 }
+
+// 资源拦截规则查找函数已移除，随网络捕获功能一起删除
 
 // 查找匹配的Mock规则 - 与injected.js保持一致的匹配逻辑
 function findMatchingMockRule(url, method) {
@@ -403,33 +322,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   
   // 支持的action列表
-  const supportedActions = ['startNetworkCapture', 'stopNetworkCapture', 'getCapturedRequests', 'pageLoaded', 
+  const supportedActions = ['pageLoaded', 
                           'getSettings', 'updateSettings', 'getMockRules', 'updateMockRules', 
-                          'toggleMock', 'openMockTool', 'injectCss', 'removeCss', 'injectJs', 'removeJs'];
+                          'toggleMock', 'openMockTool', 'injectCss', 'removeCss', 'injectJs', 'removeJs',
+                          'getResourceInterceptors', 'updateResourceInterceptors', 'logMessage'];
   
   switch (message.action) {
-    case 'startNetworkCapture':
-      networkCaptureActive = true;
-      capturedRequests = [];
-      sendResponse({ success: true, message: '网络捕获已启用' });
-      return false;
-      
-    case 'stopNetworkCapture':
-      networkCaptureActive = false;
-      sendResponse({ 
-        success: true, 
-        message: '网络捕获已禁用',
-        capturedRequests: capturedRequests
-      });
-      return false;
-      
-    case 'getCapturedRequests':
-      sendResponse({
-        success: true,
-        requests: capturedRequests,
-        isActive: networkCaptureActive
-      });
-      return false;
+    // 网络捕获相关action已移除
       
     case 'pageLoaded':
       // 记录页面加载事件
@@ -475,6 +374,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       
     case 'getMockRules':
       // 获取Mock规则
+      console.log('[DevHelper] background.js收到getMockRules请求，返回规则数量:', mockRules.length, '当前启用状态:', mockEnabled);
       sendResponse({
         success: true,
         rules: mockRules,
@@ -485,27 +385,64 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'updateMockRules':
       // 更新Mock规则
       try {
-        console.log('收到更新Mock规则请求，规则数量:', message.rules ? message.rules.length : '无规则');
+        console.log('[DevHelper] background.js收到updateMockRules请求，规则数量:', message.rules ? message.rules.length : '无规则');
         
         // 验证规则数据
         if (!Array.isArray(message.rules)) {
           throw new Error('规则数据必须是数组格式');
         }
         
-        mockRules = message.rules;
+        // 确保规则是可序列化的JSON格式
+        let serializableRules;
+        try {
+          // 使用JSON.parse(JSON.stringify())来深拷贝并去除不可序列化的属性
+          serializableRules = JSON.parse(JSON.stringify(message.rules));
+          console.log('[DevHelper] 规则序列化成功');
+        } catch (serializeError) {
+          console.error('[DevHelper] 规则序列化失败:', serializeError);
+          throw new Error('规则数据包含不可序列化的内容: ' + serializeError.message);
+        }
+        
+        mockRules = serializableRules;
+        console.log('[DevHelper] 更新内存中的Mock规则:', mockRules.length, '条规则');
         
         // 保存到存储
         if (typeof chrome !== 'undefined' && chrome.storage) {
+          console.log('[DevHelper] 开始保存Mock规则到存储');
           chrome.storage.local.set({ mockRules: mockRules }, () => {
             // 检查是否有存储错误
             if (chrome.runtime.lastError) {
-              console.error('保存Mock规则到存储失败:', chrome.runtime.lastError);
+              console.error('[DevHelper] 保存Mock规则到存储失败:', chrome.runtime.lastError);
               sendResponse({ 
                 success: false, 
                 error: '保存规则失败: ' + chrome.runtime.lastError.message 
               });
             } else {
-              console.log('Mock规则保存成功，当前规则数量:', mockRules.length);
+              console.log('[DevHelper] Mock规则保存成功，当前规则数量:', mockRules.length);
+               
+              // 广播更新到所有标签页
+              console.log('[DevHelper] 开始向所有标签页广播Mock规则更新');
+              chrome.tabs.query({}, (tabs) => {
+                console.log('[DevHelper] 找到标签页数量:', tabs.length);
+                tabs.forEach(tab => {
+                  if (tab.id && tab.url && !tab.url.startsWith('chrome://')) {
+                    console.log('[DevHelper] 向标签页发送updateMockRules消息:', tab.id, tab.url);
+                    chrome.tabs.sendMessage(tab.id, {
+                      action: 'updateMockRules',
+                      rules: mockRules
+                    }, (response) => {
+                      // 忽略错误，因为有些标签页可能不支持此消息
+                      if (response) {
+                        console.log('[DevHelper] 标签页', tab.id, '响应:', response);
+                      }
+                    });
+                  } else if (tab.id) {
+                    console.log('[DevHelper] 跳过标签页:', tab.id, tab.url ? tab.url : '无URL');
+                  }
+                });
+                console.log('[DevHelper] 所有标签页广播完成');
+              });
+               
               sendResponse({ 
                 success: true,
                 savedCount: mockRules.length,
@@ -514,7 +451,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
           });
         } else {
-          console.log('Mock规则更新成功，但未保存到存储（chrome.storage不可用）');
+          console.log('[DevHelper] Mock规则更新成功，但未保存到存储（chrome.storage不可用）');
           sendResponse({ 
             success: true,
             savedCount: mockRules.length,
@@ -533,13 +470,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       
     case 'toggleMock':
       // 切换Mock功能开关
+      console.log('[DevHelper] background.js收到toggleMock请求，新状态:', message.enabled);
       mockEnabled = message.enabled;
       // 更新设置中的mockEnabled状态
       if (typeof chrome !== 'undefined' && chrome.storage) {
+        console.log('[DevHelper] 保存Mock开关状态到存储:', mockEnabled);
         chrome.storage.local.get(['settings'], (result) => {
           const settings = result.settings || defaultSettings;
           settings.mockEnabled = mockEnabled;
           chrome.storage.local.set({ settings: settings }, () => {
+            console.log('[DevHelper] Mock开关状态保存成功');
             sendResponse({ success: true, enabled: mockEnabled });
           });
         });
@@ -683,6 +623,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
       return false;
       
+    case 'logMessage':
+      // 处理来自content或popup的日志请求
+      console.log('[DevHelper]', message.message);
+      sendResponse({ success: true });
+      return false;
+      
     case 'openMockTool':
       // 打开Mock工具页面
       chrome.tabs.create({
@@ -691,6 +637,65 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
       sendResponse({ success: true });
       return false;
+      
+    case 'getResourceInterceptors':
+      // 获取资源拦截规则
+      sendResponse({
+        success: true,
+        interceptors: resourceInterceptors
+      });
+      return false;
+      
+    case 'updateResourceInterceptors':
+      // 更新资源拦截规则
+      try {
+        console.log('收到更新资源拦截规则请求，规则数量:', message.interceptors ? message.interceptors.length : '无规则');
+        console.log('收到的拦截规则:', JSON.stringify(message.interceptors));
+        
+        // 验证规则数据
+        if (!Array.isArray(message.interceptors)) {
+          throw new Error('规则数据必须是数组格式');
+        }
+        
+        resourceInterceptors = message.interceptors;
+        console.log('资源拦截规则更新成功，当前规则:', JSON.stringify(resourceInterceptors));
+        
+        // 保存到存储
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+          chrome.storage.local.set({ resourceInterceptors: resourceInterceptors }, () => {
+            // 检查是否有存储错误
+            if (chrome.runtime.lastError) {
+              console.error('保存资源拦截规则到存储失败:', chrome.runtime.lastError);
+              sendResponse({ 
+                success: false, 
+                error: '保存规则失败: ' + chrome.runtime.lastError.message 
+              });
+            } else {
+              console.log('资源拦截规则保存成功，当前规则数量:', resourceInterceptors.length);
+              sendResponse({ 
+                success: true,
+                savedCount: resourceInterceptors.length,
+                message: '规则保存成功' 
+              });
+            }
+          });
+        } else {
+          console.log('资源拦截规则更新成功，但未保存到存储（chrome.storage不可用）');
+          sendResponse({ 
+            success: true,
+            savedCount: resourceInterceptors.length,
+            message: '规则更新成功，但未保存到存储' 
+          });
+        }
+        return true; // 保持消息通道开放以支持异步响应
+      } catch (error) {
+        console.error('处理资源拦截规则更新时发生错误:', error);
+        sendResponse({ 
+          success: false, 
+          error: '保存规则失败: ' + error.message 
+        });
+        return true; // 保持消息通道开放以支持异步响应
+      }
       
     case 'injectCss':
       // 注入CSS到当前活动标签页
@@ -816,64 +821,5 @@ chrome.action.onClicked.addListener((tab) => {
 });
 
 // 提供API供popup和content使用
-globalThis.devHelper = {
-  // 清除所有捕获的数据
-  clearData: function() {
-    capturedRequests = [];
-    requestLogs = [];
-    return { success: true, message: '数据已清除' };
-  },
-  
-  // 获取插件版本
-  getVersion: function() {
-    return chrome.runtime.getManifest().version;
-  },
-  
-  // 请求日志相关API
-  requestLogs: {
-    // 获取所有请求日志
-    getAll: function() {
-      return {
-        success: true,
-        logs: requestLogs,
-        total: requestLogs.length
-      };
-    },
-    
-    // 清空请求日志
-    clear: function() {
-      requestLogs = [];
-      currentLogId = 1; // 重置日志ID计数器
-      return { success: true, message: '请求日志已清空' };
-    },
-    
-    // 导出请求日志
-    export: function() {
-      return {
-        success: true,
-        logs: requestLogs,
-        exportTime: new Date().toISOString()
-      };
-    }
-  },
-  
-  // Mock相关API
-  mock: {
-    // 获取Mock状态
-    getStatus: function() {
-      return { enabled: mockEnabled, rules: mockRules };
-    },
-    
-    // 切换Mock开关
-    toggle: function(enabled) {
-      mockEnabled = enabled;
-      return { success: true, enabled: mockEnabled };
-    },
-    
-    // 更新Mock规则
-    updateRules: function(rules) {
-      mockRules = rules;
-      return { success: true };
-    }
-  }
-};
+// 注意：为了避免全局命名空间污染，仅在需要时才暴露必要的接口
+// 可通过 chrome.runtime.getBackgroundPage() 访问这些功能
