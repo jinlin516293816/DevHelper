@@ -5,13 +5,15 @@ function injectScript() {
   
   // 先从storage获取设置，确保注入后能立即发送正确的mock状态
   if (typeof chrome !== 'undefined' && chrome.storage) {
-    chrome.storage.local.get(['mockRules', 'settings', 'injectedCss', 'cssInjectionStatus', 'injectedJs', 'jsInjectionStatus', 'requestInterceptors'], function(result) {
+    chrome.storage.local.get(['mockRules', 'settings', 'injectedCss', 'cssInjectionStatus', 'injectedJs', 'jsInjectionStatus', 'requestInterceptors', 'requestParamsInterceptor', 'requestParamsInterceptorStatus'], function(result) {
       const rules = result.mockRules || [];
       const settings = result.settings || {};
       const mockEnabled = settings.mockEnabled !== undefined ? settings.mockEnabled : true;
       const injectedCss = result.injectedCss || '';
       const cssInjectionStatus = result.cssInjectionStatus || false;
       const requestInterceptors = Array.isArray(result.requestInterceptors) ? result.requestInterceptors : [];
+      const requestParamsInterceptor = result.requestParamsInterceptor || '';
+      const requestParamsInterceptorStatus = result.requestParamsInterceptorStatus || false;
       
       // 获取URL限制设置
       const urlRestrictionEnabled = settings.urlRestrictionEnabled !== undefined ? settings.urlRestrictionEnabled : false;
@@ -79,6 +81,15 @@ function injectScript() {
               js: injectedJs
             }, '*');
           }
+          
+          // 如果请求参数拦截器已启用，发送拦截器代码
+          if (requestParamsInterceptorStatus && requestParamsInterceptor) {
+            window.postMessage({
+              devHelper: true,
+              action: 'updateRequestParamsInterceptor',
+              code: requestParamsInterceptor
+            }, '*');
+          }
         };
       } catch (error) {
         console.error('[DevHelper] 注入脚本失败:', error);
@@ -92,13 +103,15 @@ function injectScript() {
 // 从存储加载Mock规则和Mock开关状态并发送给injected.js
 function loadAndSendMockRules() {
   if (typeof chrome !== 'undefined' && chrome.storage) {
-    chrome.storage.local.get(['mockRules', 'settings', 'injectedCss', 'cssInjectionStatus', 'injectedJs', 'jsInjectionStatus', 'requestInterceptors'], function(result) {
+    chrome.storage.local.get(['mockRules', 'settings', 'injectedCss', 'cssInjectionStatus', 'injectedJs', 'jsInjectionStatus', 'requestInterceptors', 'requestParamsInterceptor', 'requestParamsInterceptorStatus'], function(result) {
       const rules = result.mockRules || [];
       const settings = result.settings || {};
       const mockEnabled = settings.mockEnabled !== undefined ? settings.mockEnabled : true;
       const injectedCss = result.injectedCss || '';
       const cssInjectionStatus = result.cssInjectionStatus || false;
       const requestInterceptors = Array.isArray(result.requestInterceptors) ? result.requestInterceptors : [];
+      const requestParamsInterceptor = result.requestParamsInterceptor || '';
+      const requestParamsInterceptorStatus = result.requestParamsInterceptorStatus || false;
       
       // 获取URL限制设置
       const urlRestrictionEnabled = settings.urlRestrictionEnabled !== undefined ? settings.urlRestrictionEnabled : false;
@@ -151,6 +164,15 @@ function loadAndSendMockRules() {
           devHelper: true,
           action: 'injectJs',
           js: injectedJs
+        }, '*');
+      }
+      
+      // 如果请求参数拦截器已启用，发送拦截器代码
+      if (requestParamsInterceptorStatus && requestParamsInterceptor) {
+        window.postMessage({
+          devHelper: true,
+          action: 'updateRequestParamsInterceptor',
+          code: requestParamsInterceptor
         }, '*');
       }
     });
@@ -318,6 +340,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         devHelper: true,
         action: 'updateRequestInterceptors',
         interceptors: message.interceptors || []
+      }, '*');
+      sendResponse({ success: true });
+      break;
+      
+      case 'updateRequestParamsInterceptor':
+      // 处理请求参数拦截器更新
+      // 将更新的拦截器发送给injected.js
+      window.postMessage({
+        devHelper: true,
+        action: 'updateRequestParamsInterceptor',
+        code: message.code || ''
+      }, '*');
+      sendResponse({ success: true });
+      break;
+      
+      case 'disableRequestParamsInterceptor':
+      // 处理请求参数拦截器禁用
+      // 将禁用命令发送给injected.js
+      window.postMessage({
+        devHelper: true,
+        action: 'disableRequestParamsInterceptor'
       }, '*');
       sendResponse({ success: true });
       break;

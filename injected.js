@@ -1,16 +1,19 @@
 // injected.js - 注入到页面上下文的脚本，用于拦截网络请求
 
-// 立即执行函数，确保拦截代码尽可能早地执行
-(function() {
-  // 保存原始方法的引用
-  window.__devHelperOriginalFetch = window.__devHelperOriginalFetch || window.fetch;
-  window.__devHelperOriginalXHROpen = window.__devHelperOriginalXHROpen || XMLHttpRequest.prototype.open;
-  window.__devHelperOriginalXHRSend = window.__devHelperOriginalXHRSend || XMLHttpRequest.prototype.send;
+// 保存原始方法的引用
+window.__devHelperOriginalFetch = window.__devHelperOriginalFetch || window.fetch;
+window.__devHelperOriginalXHROpen = window.__devHelperOriginalXHROpen || XMLHttpRequest.prototype.open;
+window.__devHelperOriginalXHRSend = window.__devHelperOriginalXHRSend || XMLHttpRequest.prototype.send;
 
 // Mock规则存储
 let mockRules = [];
 // 请求前拦截器存储
 let requestInterceptors = [];
+// 请求参数拦截器存储
+let requestParamsInterceptor = {
+  enabled: false,
+  code: ''
+};
 // Mock开关状态，默认值为true，会被content script注入后立即更新
 let isMockEnabled = true;
 
@@ -61,6 +64,18 @@ window.addEventListener('message', (event) => {
     mockRules = data.rules || [];
   } else if (data.action === 'updateRequestInterceptors') {
     requestInterceptors = data.interceptors || [];
+  } else if (data.action === 'updateRequestParamsInterceptor') {
+    // 更新请求参数拦截器
+    requestParamsInterceptor = {
+      enabled: true,
+      code: data.code || ''
+    };
+  } else if (data.action === 'disableRequestParamsInterceptor') {
+    // 禁用请求参数拦截器
+    requestParamsInterceptor = {
+      enabled: false,
+      code: ''
+    };
   } else if (data.action === 'toggleMock') {
     isMockEnabled = data.enabled;
   } else if (data.action === 'updateUrlRestriction') {
@@ -161,12 +176,15 @@ function findMatchingRule(url, method) {
   
   let matchedRule = null;
   
+  // 确保mockRules是数组
+  const rulesList = Array.isArray(mockRules) ? mockRules : [];
+  
   // 遍历所有规则，记录匹配结果
-  for (let i = 0; i < mockRules.length; i++) {
-    const rule = mockRules[i];
+  for (let i = 0; i < rulesList.length; i++) {
+    const rule = rulesList[i];
     
-    // 检查规则是否启用
-    if (!rule.enabled) {
+    // 检查规则是否存在且启用
+    if (!rule || !rule.enabled) {
       continue;
     }
     
@@ -357,9 +375,13 @@ function executeRequestInterceptors(requestUrl, method, options) {
   let modifiedUrl = requestUrl;
   let modifiedOptions = { ...options };
   
+  // 确保requestInterceptors是数组
+  const interceptorsList = Array.isArray(requestInterceptors) ? requestInterceptors : [];
+  
   // 遍历所有拦截器
-  requestInterceptors.forEach(interceptor => {
-    if (interceptor.enabled) {
+  interceptorsList.forEach(interceptor => {
+    // 确保拦截器对象存在且启用
+    if (interceptor && interceptor.enabled) {
       try {
         // 检查URL是否匹配拦截器的URL模式
         const regex = new RegExp(interceptor.urlPattern);
@@ -374,8 +396,10 @@ function executeRequestInterceptors(requestUrl, method, options) {
             body: modifiedOptions.body
           };
           
-          // 执行拦截器代码
-          eval(interceptor.code);
+          // 执行拦截器代码，传入request对象作为参数
+          // 使用Function构造函数代替eval以提高安全性
+          const interceptorFunc = new Function('request', interceptor.code);
+          interceptorFunc(request);
           
           // 更新URL和选项
           modifiedUrl = request.url;
@@ -383,10 +407,59 @@ function executeRequestInterceptors(requestUrl, method, options) {
           modifiedOptions.body = request.body;
         }
       } catch (error) {
-        // 静默失败，不干扰用户
+        // 输出错误到控制台，方便调试
+        console.error('[DevHelper] 请求前拦截器执行出错:', error);
       }
     }
   });
+  
+  return { url: modifiedUrl, options: modifiedOptions };
+}
+
+// 执行全局请求参数拦截器
+function executeRequestParamsInterceptor(requestUrl, method, options) {
+  let modifiedUrl = requestUrl;
+  let modifiedOptions = { ...options };
+  
+  // 确保requestParamsInterceptor是对象
+  const paramsInterceptor = typeof requestParamsInterceptor === 'object' && requestParamsInterceptor !== null ? requestParamsInterceptor : { enabled: false, code: '' };
+  
+  // 检查请求参数拦截器是否启用
+  if (paramsInterceptor.enabled && paramsInterceptor.code) {
+    try {
+      // 创建请求上下文
+      const request = {
+        url: modifiedUrl,
+        method: method,
+        headers: modifiedOptions.headers || {},
+        body: modifiedOptions.body
+      };
+      
+      // 使用Function构造函数代替eval以提高安全性
+      // 创建一个包装函数，将request作为参数传递
+      const fullCode = `
+        ${paramsInterceptor.code}
+        // 如果定义了interceptParams函数，则调用它
+        if (typeof interceptParams === 'function') {
+          return interceptParams(request);
+        }
+        return request;
+      `;
+      
+      // 创建拦截器函数并执行
+      const interceptorFunc = new Function('request', fullCode);
+      const result = interceptorFunc(request);
+      
+      // 更新URL和选项
+      modifiedUrl = result.url;
+      modifiedOptions.headers = result.headers;
+      modifiedOptions.body = result.body;
+      
+    } catch (error) {
+      // 输出错误到控制台，方便调试
+      console.error('[DevHelper] 请求参数拦截器执行出错:', error);
+    }
+  }
   
   return { url: modifiedUrl, options: modifiedOptions };
 }
@@ -407,16 +480,34 @@ Object.defineProperty(window, 'fetch', {
       fixedUrl = originalUrl.replace('http://', 'https://');
     }
     
-    // 如果Mock功能未启用，直接调用原始方法
+    // 检查URL是否允许（无论Mock是否启用，都需要检查URL限制）
+    const urlAllowed = isUrlAllowed(fixedUrl);
+    
+    // 如果Mock功能未启用，但URL允许，仍然执行参数拦截器
     if (!isMockEnabled) {
-      // 如果URL被修复，使用修复后的URL
-      if (fixedUrl !== originalUrl) {
+      // 执行请求前拦截器和参数拦截器
+      let modifiedUrl = fixedUrl;
+      let modifiedOptions = options;
+      
+      // 只有当URL允许时才执行拦截器
+      if (urlAllowed) {
+        const interceptResult = executeRequestInterceptors(modifiedUrl, method, modifiedOptions);
+        modifiedUrl = interceptResult.url;
+        modifiedOptions = interceptResult.options;
+        
+        const paramsResult = executeRequestParamsInterceptor(modifiedUrl, method, modifiedOptions);
+        modifiedUrl = paramsResult.url;
+        modifiedOptions = paramsResult.options;
+      }
+      
+      // 如果URL被修复或修改，使用新的URL和选项
+      if (modifiedUrl !== originalUrl) {
         if (url instanceof Request) {
           // 创建一个新的Request对象，保持所有属性
-          const newRequest = new Request(fixedUrl, {
+          const newRequest = new Request(modifiedUrl, {
             method: url.method,
             headers: url.headers,
-            body: url.body,
+            body: modifiedOptions.body,
             mode: url.mode,
             credentials: url.credentials,
             cache: url.cache,
@@ -428,15 +519,12 @@ Object.defineProperty(window, 'fetch', {
           });
           return window.__devHelperOriginalFetch.call(this, newRequest);
         } else {
-          return window.__devHelperOriginalFetch.call(this, fixedUrl, options);
+          return window.__devHelperOriginalFetch.call(this, modifiedUrl, modifiedOptions);
         }
       }
       // 如果url是Request对象，不需要传递options参数
       return window.__devHelperOriginalFetch.call(this, url, url instanceof Request ? undefined : options);
     }
-    
-    // 检查URL是否允许
-    const urlAllowed = isUrlAllowed(fixedUrl);
     
     // 如果URL不允许，直接调用原始fetch，不做任何拦截
     if (!urlAllowed) {
@@ -467,7 +555,12 @@ Object.defineProperty(window, 'fetch', {
     }
     
     // 执行请求前拦截器
-    const { url: modifiedUrl, options: modifiedOptions } = executeRequestInterceptors(fixedUrl, method, options);
+    let { url: modifiedUrl, options: modifiedOptions } = executeRequestInterceptors(fixedUrl, method, options);
+    
+    // 执行请求参数拦截器
+    const paramsIntercepted = executeRequestParamsInterceptor(modifiedUrl, method, modifiedOptions);
+    modifiedUrl = paramsIntercepted.url;
+    modifiedOptions = paramsIntercepted.options;
     
     // 查找匹配的规则
     const matchingRule = findMatchingRule(modifiedUrl, method);
@@ -679,6 +772,11 @@ XMLHttpRequest.prototype.send = function(...args) {
   const { url: modifiedUrl, options: modifiedOptions } = executeRequestInterceptors(url, method, options);
   url = modifiedUrl;
   requestData = modifiedOptions.body;
+  
+  // 执行请求参数拦截器
+  const paramsIntercepted = executeRequestParamsInterceptor(url, method, modifiedOptions);
+  url = paramsIntercepted.url;
+  requestData = paramsIntercepted.options.body;
   
   // 更新XHR的URL
   this._devHelperUrl = url;
@@ -1056,5 +1154,3 @@ window.postMessage({
   devHelper: true,
   action: 'injectedSuccessfully'
 }, '*');
-
-})();
