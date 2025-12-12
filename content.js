@@ -469,7 +469,7 @@ function showDevHelperNotification() {
     font-weight: 500;
     animation: slideInRight 0.3s ease-out;
   `;
-  notification.textContent = 'DevHelper 拯救者已启动';
+  notification.textContent = 'DevHelper 已开启';
   
   // 添加动画样式
   const style = document.createElement('style');
