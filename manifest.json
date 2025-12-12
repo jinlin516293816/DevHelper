@@ -47,6 +47,7 @@
         "mock/*",
         "mock/dist/*",
         "mock/dist/assets/*",
+        "icon-library/*",
         "injected.js"
       ],
       "matches": ["<all_urls>"]

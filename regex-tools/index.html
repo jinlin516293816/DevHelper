@@ -3,197 +3,525 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JS正则表达式 - Super JSON Tool</title>
+    <title>正则表达式工具集</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        /* 全局样式 */
+        * {
             margin: 0;
-            padding: 20px;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #f5f5f5;
             color: #333;
+            line-height: 1.6;
         }
+        
+        /* 容器样式 */
         .container {
-            max-width: 1000px;
+            max-width: 1200px;
             margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* 导航区样式 */
+        .navigation {
             background-color: white;
             border-radius: 8px;
-            padding: 24px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #3498db;
-            margin-top: 0;
-            margin-bottom: 24px;
-            font-size: 24px;
-            text-align: center;
-        }
-        h2 {
-            color: #555;
-            font-size: 18px;
-            margin-top: 24px;
-            margin-bottom: 16px;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 8px;
-        }
-        .regex-item {
-            margin-bottom: 16px;
-            padding: 12px;
-            border: 1px solid #eee;
-            border-radius: 4px;
-            background-color: #f9f9f9;
-        }
-        .regex-name {
-            font-weight: 600;
-            color: #555;
-            margin-bottom: 8px;
-        }
-        .regex-pattern {
-            background-color: #f1f1f1;
-            padding: 8px 12px;
-            border-radius: 4px;
-            font-family: 'Consolas', 'Monaco', monospace;
-            font-size: 14px;
-            word-break: break-all;
-            margin-bottom: 8px;
-            transition: all 0.2s ease;
-        }
-        .regex-description {
-            font-size: 14px;
-            color: #666;
-            font-style: italic;
-        }
-        .back-link {
-            display: inline-block;
-            margin-top: 30px;
-            color: #3498db;
-            text-decoration: none;
-            font-size: 14px;
-        }
-        .back-link:hover {
-            text-decoration: underline;
-        }
-        .message {
-            padding: 12px;
-            border-radius: 4px;
+            padding: 20px;
             margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* 主体内容区样式 */
+        .main-content {
+            display: flex;
+            gap: 30px;
+        }
+        
+        /* 左侧菜单样式 */
+        .left-menu {
+            width: 250px;
+            flex-shrink: 0;
+            position: sticky;
+            top: 64px; /* 与顶部header高度一致 */
+            align-self: flex-start; /* 确保粘性定位元素从顶部开始 */
+        }
+        
+        /* 右侧内容列表样式 */
+        .content-list {
+            flex: 1;
+            min-height: calc(100vh - 64px); /* 视口高度减去头部高度 */
+        }
+        
+        /* 正则表达式列表最小高度 */
+        .regex-list {
+            min-height: calc(100vh - 120px); /* 视口高度减去头部和搜索栏高度 */
+        }
+        
+        /* DevHelper 统一头部样式 */
+        .header {
+            background: linear-gradient(135deg, rgba(26, 26, 46, 0.95) 0%, rgba(22, 33, 62, 0.95) 100%);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .nav-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        .logo i {
+            font-size: 24px;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 20px;
+            color: white;
+        }
+        
+        /* 搜索栏样式 */
+        .search-bar {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .search-bar input {
+            flex: 1;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        /* 分类筛选样式 */
+        .category-filter {
+            margin-bottom: 20px;
+        }
+        
+        .category-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .category-item {
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .category-item:last-child {
+            border-bottom: none;
+        }
+        
+        .category-btn {
+            width: 100%;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 0;
+            background-color: transparent;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
             font-size: 14px;
+            text-align: left;
+        }
+        
+        .category-btn i {
+            font-size: 16px;
+            width: 20px;
             text-align: center;
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
+        }
+        
+        .category-btn:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .category-btn.active {
+            background-color: #3498db;
+            color: white;
+        }
+        
+        /* 正则表达式列表样式 */
+        .regex-list {
+            margin-bottom: 30px;
+        }
+        
+        .regex-item {
+            background-color: white;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+            overflow: hidden;
+        }
+        
+        .regex-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .regex-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 20px;
+            background-color: #f9f9f9;
+            cursor: pointer;
+        }
+        
+        .regex-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 3px;
+            color: #2c3e50;
+            cursor: pointer;
+        }
+        
+        .regex-category {
+            font-size: 11px;
+            color: #999;
+        }
+        
+        .regex-description {
+            padding: 0 20px 15px 20px;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        /* 抽屉样式 */
+        .regex-drawer {
+            padding: 15px 20px;
+            background-color: #f5f5f5;
+            border-top: 1px solid #eee;
             display: none;
         }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>JavaScript 正则表达式工具</h1>
         
-        <div id="copy-message" class="message"></div>
-        
-        <h2>常用正则表达式</h2>
-        
-        <div class="regex-item">
-            <div class="regex-name">邮箱地址</div>
-            <div class="regex-pattern">/^[^\s@]+@[^\s@]+\.[^\s@]+$/</div>
-            <div class="regex-description">匹配标准的邮箱地址格式</div>
-        </div>
-        
-        <div class="regex-item">
-            <div class="regex-name">手机号码 (中国)</div>
-            <div class="regex-pattern">/^1[3-9]\d{9}$/</div>
-            <div class="regex-description">匹配中国大陆11位手机号码</div>
-        </div>
-        
-        <div class="regex-item">
-            <div class="regex-name">URL地址</div>
-            <div class="regex-pattern">/^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$/</div>
-            <div class="regex-description">匹配HTTP/HTTPS协议的URL</div>
-        </div>
-        
-        <div class="regex-item">
-            <div class="regex-name">身份证号 (中国)</div>
-            <div class="regex-pattern">/^[1-9]\d{5}(18|19|20)\d{2}((0[1-9])|(1[0-2]))(([0-2][1-9])|10|20|30|31)\d{3}[0-9Xx]$/</div>
-            <div class="regex-description">匹配18位中国大陆身份证号码</div>
-        </div>
-        
-        <div class="regex-item">
-            <div class="regex-name">IPv4地址</div>
-            <div class="regex-pattern">/^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}$/</div>
-            <div class="regex-description">匹配IPv4地址格式</div>
-        </div>
-        
-        <div class="regex-item">
-            <div class="regex-name">日期格式 (YYYY-MM-DD)</div>
-            <div class="regex-pattern">/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/</div>
-            <div class="regex-description">匹配YYYY-MM-DD格式的日期</div>
-        </div>
-        
-        <div class="regex-item">
-            <div class="regex-name">密码强度 (至少8位，包含字母和数字)</div>
-            <div class="regex-pattern">/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/</div>
-            <div class="regex-description">至少8位，必须包含字母和数字</div>
-        </div>
-        
-        <div class="regex-item">
-            <div class="regex-name">中文字符</div>
-            <div class="regex-pattern">/[\u4e00-\u9fa5]/</div>
-            <div class="regex-description">匹配中文字符</div>
-        </div>
-        
-        <a href="popup.html" class="back-link">返回主界面</a>
-    </div>
-    
-    <script>
-        // 初始化正则表达式复制功能
-        function initRegexCopy() {
-            const regexPatterns = document.querySelectorAll('.regex-pattern');
-            const copyMessage = document.getElementById('copy-message');
-            
-            regexPatterns.forEach(pattern => {
-                pattern.style.cursor = 'copy';
-                pattern.title = '点击复制';
-                
-                pattern.addEventListener('click', () => {
-                    const text = pattern.textContent;
-                    navigator.clipboard.writeText(text).then(() => {
-                        // 显示复制成功消息
-                        copyMessage.textContent = '已复制到剪贴板！';
-                        copyMessage.style.display = 'block';
-                        
-                        // 高亮显示被复制的模式
-                        const originalBg = pattern.style.backgroundColor;
-                        const originalColor = pattern.style.color;
-                        pattern.style.backgroundColor = '#28a745';
-                        pattern.style.color = 'white';
-                        
-                        // 2秒后恢复原状
-                        setTimeout(() => {
-                            pattern.style.backgroundColor = originalBg;
-                            pattern.style.color = originalColor;
-                        }, 2000);
-                        
-                        // 3秒后隐藏消息
-                        setTimeout(() => {
-                            copyMessage.style.display = 'none';
-                        }, 3000);
-                    }).catch(() => {
-                        copyMessage.textContent = '复制失败，请手动复制';
-                        copyMessage.style.backgroundColor = '#f8d7da';
-                        copyMessage.style.color = '#721c24';
-                        copyMessage.style.borderColor = '#f5c6cb';
-                        copyMessage.style.display = 'block';
-                        
-                        setTimeout(() => {
-                            copyMessage.style.display = 'none';
-                        }, 3000);
-                    });
-                });
-            });
+        .drawer-toggle {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            padding: 5px;
+            font-size: 12px;
         }
         
-        // 页面加载完成后初始化
-        window.addEventListener('DOMContentLoaded', initRegexCopy);
-    </script>
+        /* 语言标签和模式样式 */
+        .language-tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+        
+        .language-tab {
+            padding: 5px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .language-tab.active {
+            background-color: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+        
+        .language-patterns {
+            position: relative;
+        }
+        
+        .language-pattern {
+            display: none;
+            padding: 12px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .language-pattern:hover {
+            background-color: #eee;
+        }
+        
+        .language-pattern.active {
+            display: block;
+        }
+        
+        /* 复制消息样式 */
+        .message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 24px;
+            border-radius: 4px;
+            color: white;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
+        
+        .message.success {
+            background-color: #2ecc71;
+        }
+        
+        .message.error {
+            background-color: #e74c3c;
+        }
+        
+        /* 测试工具样式 */
+        .test-tool {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .test-tool h2 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        
+        .test-input-group {
+            margin-bottom: 15px;
+        }
+        
+        .test-input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .test-input-group input, .test-input-group textarea {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        
+        .test-input-group textarea {
+            height: 150px;
+            resize: vertical;
+        }
+        
+        /* 测试结果样式 */
+        .test-result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 4px;
+            min-height: 100px;
+        }
+        
+        .test-result.success {
+            background-color: #eafaf1;
+            border: 1px solid #2ecc71;
+            color: #27ae60;
+        }
+        
+        .test-result.error {
+            background-color: #fdecea;
+            border: 1px solid #e74c3c;
+            color: #c0392b;
+        }
+        
+        .test-result.empty {
+            background-color: #fef9e7;
+            border: 1px solid #f39c12;
+            color: #d35400;
+        }
+        
+        .result-count {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .result-list {
+            margin-top: 10px;
+        }
+        
+        .result-item {
+            background-color: white;
+            padding: 5px 10px;
+            border-radius: 3px;
+            margin-bottom: 5px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 10px;
+            }
+            
+            /* 导航区样式调整 */
+            .navigation {
+                padding: 15px;
+            }
+            
+            /* 主体内容区调整为垂直布局 */
+            .main-content {
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            /* 左侧菜单调整 */
+            .left-menu {
+                width: 100%;
+            }
+            
+            /* 左侧菜单响应式调整 */
+            .category-list {
+                width: 100%;
+            }
+            
+            /* 语言标签调整为换行 */
+            .language-tabs {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Header Navigation -->
+    <header class="header">
+        <nav class="nav-container">
+            <div class="nav-left">
+                <div class="logo">
+                    <i class="fas fa-tools"></i>
+                    <span class="logo-text">DevHelper</span>
+                </div>
+                <h1>正则表达式工具集</h1>
+            </div>
+        </nav>
+    </header>
+    <!-- 顶部占位，防止 header 遮挡内容 -->
+    <div style="height:64px;"></div>
+    <div class="container">
+        <!-- 导航区：包含搜索栏和测试工具 -->
+        <div class="navigation">
+            <div class="test-tool">
+                <h2>正则表达式测试工具</h2>
+                <div class="test-input-group">
+                    <label for="testRegex">正则表达式</label>
+                    <input type="text" id="testRegex" placeholder="输入正则表达式，如: ^[a-z]+$">
+                </div>
+                <div class="test-input-group">
+                    <label for="testFlags">标志</label>
+                    <input type="text" id="testFlags" placeholder="输入正则表达式标志，如: gmi">
+                </div>
+                <div class="test-input-group">
+                    <label for="testText">测试文本</label>
+                    <textarea id="testText" placeholder="输入要测试的文本..."></textarea>
+                </div>
+                <button id="testBtn" style="padding: 12px 24px; background-color: #3498db; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; transition: background-color 0.3s;">
+                    测试正则表达式
+                </button>
+                <div id="testResult" class="test-result"></div>
+            </div>
+            
+           
+        </div>
+        <!-- 主体内容区：左侧导航和右侧内容列表 -->
+        <div class="main-content">
+              
+            <div class="left-menu">
+                <div class="category-filter">
+                    <ul class="category-list">
+                        <li class="category-item">
+                            <button class="category-btn active" data-category="all">
+                                <i class="fas fa-th-large"></i>
+                                <span>全部</span>
+                            </button>
+                        </li>
+                        <li class="category-item">
+                            <button class="category-btn" data-category="验证类">
+                                <i class="fas fa-check-circle"></i>
+                                <span>验证类</span>
+                            </button>
+                        </li>
+                        <li class="category-item">
+                            <button class="category-btn" data-category="提取类">
+                                <i class="fas fa-search"></i>
+                                <span>提取类</span>
+                            </button>
+                        </li>
+                        <li class="category-item">
+                            <button class="category-btn" data-category="替换类">
+                                <i class="fas fa-exchange-alt"></i>
+                                <span>替换类</span>
+                            </button>
+                        </li>
+                        <li class="category-item">
+                            <button class="category-btn" data-category="格式化类">
+                                <i class="fas fa-align-justify"></i>
+                                <span>格式化类</span>
+                            </button>
+                        </li>
+                        <li class="category-item">
+                            <button class="category-btn" data-category="特殊字符类">
+                                <i class="fas fa-code"></i>
+                                <span>特殊字符类</span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="content-list">
+                <div class="search-bar">
+                    <input type="text" id="regexSearch" placeholder="搜索正则表达式...">
+                </div>
+                <div class="regex-list" id="regexList">
+                    <!-- 正则表达式项将通过JavaScript动态生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="copy-message" class="message"></div>
+
+    <script src="regex-tools.js"></script>
 </body>
 </html>

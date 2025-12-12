@@ -141,6 +141,28 @@ function openMockTool() {
   }
 }
 
+// 打开图标库
+function openIconLibrary() {
+  showStatus('正在打开图标库...');
+  
+  try {
+    // 在新标签页中打开图标库
+    chrome.tabs.create({
+      url: chrome.runtime.getURL('icon-library/index.html'),
+      active: true
+    }, (tab) => {
+      if (tab) {
+        showStatus('图标库已打开');
+      } else {
+        showStatus('打开失败，请重试');
+      }
+    });
+  } catch (error) {
+    showStatus('打开失败: ' + error.message);
+    console.error('打开图标库失败:', error);
+  }
+}
+
 // 事件监听
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('openJsonFormatter').addEventListener('click', openJsonFormatter);
@@ -148,4 +170,5 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('openRegexTools').addEventListener('click', openRegexTools);
   document.getElementById('openColorTools').addEventListener('click', openColorTools);
   document.getElementById('openMockTool').addEventListener('click', openMockTool);
+  document.getElementById('openIconLibrary').addEventListener('click', openIconLibrary);
 });

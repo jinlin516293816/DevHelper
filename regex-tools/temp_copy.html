@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>正则表达式工具 - Super JSON Tool</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #3498db;
+            margin-top: 0;
+            margin-bottom: 24px;
+            font-size: 28px;
+            text-align: center;
+        }
+        h2 {
+            color: #555;
+            font-size: 20px;
+            margin-top: 24px;
+            margin-bottom: 16px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+        h3 {
+            color: #666;
+            font-size: 16px;
+            margin: 12px 0;
+        }
+        .search-container {
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        .search-box {
+            width: 100%;
+            max-width: 500px;
+            padding: 12px 16px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        .search-box:focus {
+            border-color: #3498db;
+        }
+        .category-container {
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        .category-btn {
+            padding: 8px 16px;
+            margin: 0 4px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            background-color: white;
+            color: #666;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .category-btn:hover {
+            background-color: #f5f5f5;
+        }
+        .category-btn.active {
+            background-color: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+        .regex-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 16px;
+        }
+        .regex-item {
+            background-color: #f9f9f9;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 16px;
+            transition: box-shadow 0.3s;
+        }
+        .regex-item:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .regex-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .regex-name {
+            font-weight: bold;
+            color: #333;
+            cursor: pointer;
+        }
+        .regex-pattern {
+            background-color: #e3f2fd;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            word-break: break-all;
+        }
+        .regex-description {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+        .regex-details {
+            display: none;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #eee;
+        }
+        .regex-details.expanded {
+            display: block;
+        }
+        .regex-language-tabs {
+            display: flex;
+            margin-bottom: 8px;
+        }
+        .language-tab {
+            padding: 4px 8px;
+            margin-right: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+            color: #666;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .language-tab.active {
+            background-color: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+        .language-patterns {
+            background-color: #f5f5f5;
+            padding: 8px;
+            border-radius: 4px;
+        }
+        .language-pattern {
+            display: none;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            padding: 4px 8px;
+            background-color: white;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            cursor: pointer;
+            word-break: break-all;
+        }
+        .language-pattern.active {
+            display: block;
+        }
+        .message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 16px;
+            border-radius: 4px;
+            color: white;
+            font-size: 14px;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .message.success {
+            background-color: #2ecc71;
+        }
+        .message.error {
+            background-color: #e74c3c;
+        }
+        .test-container {
+            margin-top: 40px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            border: 1px solid #eee;
+        }
+        .test-input-group {
+            margin-bottom: 16px;
+        }
+        .test-input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #333;
+        }
+        .test-input-group input, .test-input-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            outline: none;
+        }
+        .test-input-group input:focus, .test-input-group textarea:focus {
+            border-color: #3498db;
+        }
+        .test-input-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        .test-result {
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .test-result.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .test-result.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .test-result.empty {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .result-count {
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .result-list {
+            margin-top: 8px;
+        }
+        .result-item {
+            background-color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>正则表达式工具</h1>
+        <div class="search-container">
+            <input type="text" id="regexSearch" class="search-box" placeholder="搜索正则表达式...">
+        </div>
+        <div class="category-container">
+            <button class="category-btn active" data-category="all">全部</button>
+            <button class="category-btn" data-category="验证类">验证类</button>
+            <button class="category-btn" data-category="提取类">提取类</button>
+            <button class="category-btn" data-category="替换类">替换类</button>
+            <button class="category-btn" data-category="格式化类">格式化类</button>
+            <button class="category-btn" data-category="特殊字符类">特殊字符类</button>
+        </div>
+        <div id="regexList" class="regex-list"></div>
+        <div class="test-container">
+            <h2>正则表达式测试工具</h2>
+            <div class="test-input-group">
+                <label for="testRegex">正则表达式</label>
+                <input type="text" id="testRegex" placeholder="输入正则表达式，如：^\d{3}-\d{8}$">
+            </div>
+            <div class="test-input-group">
+                <label for="testFlags">标志（可选）</label>
+                <input type="text" id="testFlags" placeholder="如：g, i, m">
+            </div>
+            <div class="test-input-group">
+                <label for="testText">测试文本</label>
+                <textarea id="testText" placeholder="输入要测试的文本..."></textarea>
+            </div>
+            <button id="testBtn" style="padding: 12px 24px; background-color: #3498db; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; transition: background-color 0.3s;">
+                测试正则表达式
+            </button>
+            <div id="testResult" class="test-result"></div>
+        </div>
+    </div>
+    <div id="copy-message" class="message"></div>
+
+    <script>
+        // 正则表达式数据库
+        const regexDatabase = {
+            // 验证类
+            'email': {
+                title: '邮箱验证',
+                category: '验证类',
+                description: '验证电子邮件地址的合法性，支持@前的各种字符组合，@后必须是域名格式',
+                patterns: {
+                    javascript: '/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$/',
+                    python: 'r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"',
+                    php: '/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$/',
+                    java: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$'
+                }
+            },
+            'phone': {
+                title: '手机号验证',
+                category: '验证类',
+                description: '验证中国大陆手机号码，支持最新号段',
+                patterns: {
+                    javascript: '/^1[3-9]\\d{9}$/',
+                    python: 'r"^1[3-9]\\d{9}$"',
+                    php: '/^1[3-9]\\d{9}$/',
+                    java: '^1[3-9]\\d{9}$'
+                }
+            },
+            'tel': {
+                title: '固定电话验证',
+                category: '验证类',
+                description: '验证固定电话号码，支持带区号和不带区号的格式',
+                patterns: {
+                    javascript: '/^(0\\d{2,3}-?)?\\d{7,8}$/',
+                    python: 'r"^(0\\d{2,3}-?)?\\d{7,8}$"',
+                    php: '/^(0\\d{2,3}-?)?\\d{7,8}$/',
+                    java: '^(0\\d{2,3}-?)?\\d{7,8}$'
+                }
+            },
+            'password': {
+                title: '密码强度验证',
+                category: '验证类',
+                description: '密码必须包含大小写字母、数字和特殊字符，长度8-16位',
+                patterns: {
+                    javascript: '/^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,16}$/',
+                    python: 'r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,16}$"',
+                    php: '/^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,16}$/',
+                    java: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,16}$'
+                }
+            },
+            'qq': {
+                title: 'QQ号验证',
+                category: '验证类',
+                description: '验证QQ号，必须是5-11位数字，第一位不能为0',
+                patterns: {
+                    javascript: '/^[1-9][0-9]{4,10}$/',
+                    python: 'r"^[1-9][0-9]{4,10}$"',
+                    php: '/^[1-9][0-9]{4,10}$/',
+                    java: '^[1-9][0-9]{4,10}$'
+                }
+            },
+            'postal': {
+                title: '邮政编码验证',
+                category: '验证类',
+                description: '验证中国邮政编码，6位数字',
+                patterns: {
+                    javascript: '/^\\d{6}$/',
+                    python: 'r"^\\d{6}$"',
+                    php: '/^\\d{6}$/',
+                    java: '^\\d{6}$'
+                }
+            },
+            'account': {
+                title: '账号验证',
+                category: '验证类',
+                description: '验证账号，字母开头，允许5-16位，字母数字下划线组合',
+                patterns: {
+                    javascript: '/^[a-zA-Z]\\w{4,15}$/',
+                    python: 'r"^[a-zA-Z]\\w{4,15}$"',
+                    php: '/^[a-zA-Z]\\w{4,15}$/',
+                    java: '^[a-zA-Z]\\w{4,15}$'
+                }
+            },
+            'url': {
+                title: 'URL验证',
+                category: '验证类',
+                description: '验证URL地址的合法性，支持http、https协议，可选端口、路径、参数、锚点，支持localhost和IP地址',
+                patterns: {
+                    javascript: '/^(https?:\\/\\/)?((([\\w-]+\\.)+[\\w-]+|localhost|\\d{1,3}(?:\\.\\d{1,3}){3}))(\\:\\d{1,5})?(\\/[^\\s?#]*)?(\\?[^\\s#]*)?(#[^\\s]*)?$/i',
+                    python: 'r"(https?:\\/\\/)?((([\\w-]+\\.)+[\\w-]+|localhost|\\d{1,3}(?:\\.\\d{1,3}){3}))(\\:\\d{1,5})?(\\/[^\\s?#]*)?(\\?[^\\s#]*)?(#[^\\s]*)?$"',
+                    php: '/^(https?:\\/\\/)?((([\\w-]+\\.)+[\\w-]+|localhost|\\d{1,3}(?:\\.\\d{1,3}){3}))(\\:\\d{1,5})?(\\/[^\\s?#]*)?(\\?[^\\s#]*)?(#[^\\s]*)?$/i',
+                    java: '^(https?:\\/\\/)?((([\\w-]+\\.)+[\\w-]+|localhost|\\d{1,3}(?:\\.\\d{1,3}){3}))(\\:\\d{1,5})?(\\/[^\\s?#]*)?(\\?[^\\s#]*)?(#[^\\s]*)?$'
+                }
+            },
+            'idcard': {
+                title: '身份证验证',
+                category: '验证类',
+                description: '验证中国大陆居民身份证号码，支持18位',
+                patterns: {
+                    javascript: '/^[1-9]\\d{5}(19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[0-9X]$/',
+                    python: 'r"^[1-9]\\d{5}(19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[0-9X]$"',
+                    php: '/^[1-9]\\d{5}(19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[0-9X]$/',
+                    java: '^[1-9]\\d{5}(19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[0-9X]$'
+                }
+            },
+            'ipv4': {
+                title: 'IPv4地址验证',
+                category: '验证类',
+                description: '验证IPv4地址格式',
+                patterns: {
+                    javascript: '/^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/',
+                    python: 'r"^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"',
+                    php: '/^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/',
+                    java: '^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
+                }
+            },
+            'date': {
+                title: '日期验证',
+                category: '验证类',
+                description: '验证日期格式（YYYY-MM-DD）',
+                patterns: {
+                    javascript: '/^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$/',
+                    python: 'r"^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"',
+                    php: '/^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$/',
+                    java: '^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$'
+                }
+            },
+            'number': {
+                title: '数字验证',
+                category: '验证类',
+                description: '验证是否为数字',
+                patterns: {
+                    javascript: '/^\\d+$/',
+                    python: 'r"^\\d+$"',
+                    php: '/^\\d+$/',
+                    java: '^\\d+$'
+                }
+            },
+            'number-n-digits': {
+                title: 'n位数字验证',
+                category: '验证类',
+                description: '验证是否为n位数字',
+                patterns: {
+                    javascript: '/^\\d{n}$/',
+                    python: 'r"^\\d{n}$"',
+                    php: '/^\\d{n}$/',
+                    java: '^\\d{n}$'
+                }
+            },
+            'number-min-n-digits': {
+                title: '最少n位数字验证',
+                category: '验证类',
+                description: '验证是否为最少n位数字',
+                patterns: {
+                    javascript: '/^\\d{n,}$/',
+                    python: 'r"^\\d{n,}$"',
+                    php: '/^\\d{n,}$/',
+                    java: '^\\d{n,}$'
+                }
+            },
+            'number-range-digits': {
+                title: '数字位数范围验证',
+                category: '验证类',
+                description: '验证数字位数范围',
+                patterns: {
+                    javascript: '/^\\d{m,n}$/',
+                    python: 'r"^\\d{m,n}$"',
+                    php: '/^\\d{m,n}$/',
+                    java: '^\\d{m,n}$'
+                }
+            },
+            'decimal': {
+                title: '小数验证',
+                category: '验证类',
+                description: '验证小数',
+                patterns: {
+                    javascript: '/^\\d+\\.\\d+$/',
+                    python: 'r"^\\d+\\.\\d+$"',
+                    php: '/^\\d+\\.\\d+$/',
+                    java: '^\\d+\\.\\d+$'
+                }
+            },
+            'integer': {
+                title: '整数验证',
+                category: '验证类',
+                description: '验证整数',
+                patterns: {
+                    javascript: '/^-?\\d+$/',
+                    python: 'r"^-?\\d+$"',
+                    php: '/^-?\\d+$/',
+                    java: '^-?\\d+$'
+                }
+            },
+            'chinese-name': {
+                title: '中文姓名验证',
+                category: '验证类',
+                description: '验证中文姓名',
+                patterns: {
+                    javascript: '/^[\\u4e00-\\u9fa5]{2,}$/',
+                    python: 'r"^[\\u4e00-\\u9fa5]{2,}$"',
+                    php: '/^[\\x{4e00}-\\x{9fa5}]{2,}$/u',
+                    java: '^[\\u4e00-\\u9fa5]{2,}$'
+                }
+            },
+            'english-name': {
+                title: '英文姓名验证',
+                category: '验证类',
+                description: '验证英文姓名',
+                patterns: {
+                    javascript: '/^[A-Za-z\\s]+$/',
+                    python: 'r"^[A-Za-z\\s]+$"',
+                    php: '/^[A-Za-z\\s]+$/',
+                    java: '^[A-Za-z\\s]+$'
+                }
+            },
+            'username': {
+                title: '用户名验证',
+                category: '验证类',
+                description: '验证用户名',
+                patterns: {
+                    javascript: '/^[a-zA-Z0-9_]{4,16}$/',
+                    python: 'r"^[a-zA-Z0-9_]{4,16}$"',
+                    php: '/^[a-zA-Z0-9_]{4,16}$/',
+                    java: '^[a-zA-Z0-9_]{4,16}$'
+                }
+            },
+            'password-strong': {
+                title: '强密码验证',
+                category: '验证类',
+                description: '强密码（8-16位，包含大小写字母、数字、特殊字符）',
+                patterns: {
+                    javascript: '/^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,16}$/',
+                    python: 'r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,16}$"',
+                    php: '/^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,16}$/',
+                    java: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,16}$'
+                }
+            },
+            'mac-address': {
+                title: 'MAC地址验证',
+                category: '验证类',
+                description: '验证MAC地址',
+                patterns: {
+                    javascript: '/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/',
+                    python: 'r"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"',
+                    php: '/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/',
+                    java: '^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$'
+                }
+            },
+            'hex-color': {
+                title: '16进制颜色验证',
+                category: '验证类',
+                description: '验证16进制颜色',
+                patterns: {
+                    javascript: '/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/',
+                    python: 'r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"',
+                    php: '/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/',
+                    java: '^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$'
+                }
+            },
+            'version-number': {
+                title: '版本号验证',
+                category: '验证类',
+                description: '验证版本号',
+                patterns: {
+                    javascript: '/^\\d+\\.\\d+\\.\\d+$/',
+                    python: 'r"^\\d+\\.\\d+\\.\\d+$"',
+                    php: '/^\\d+\\.\\d+\\.\\d+$/',
+                    java: '^\\d+\\.\\d+\\.\\d+$'
+                }
+            },
+
+            // 提取类
+            'html-tags': {
+                title: 'HTML标签提取',
+                category: '提取类',
+                description: '提取HTML标签及其内容',
+                patterns: {
+                    javascript: '/<([a-z][a-z0-9]*)[^>]*>.*?<\\/\\1>/gi',
+                    python: 'r"<([a-z][a-z0-9]*)[^>]*>.*?</\\1>"',
+                    php: '/<([a-z][a-z0-9]*)[^>]*>.*?<\\/\\1>/i',
+                    java: '<([a-z][a-z0-9]*)[^>]*>.*?</\\1>'
+                }
+            },
+            'img-urls': {
+                title: '图片URL提取',
+                category: '提取类',
+                description: '提取HTML中的图片URL',
+                patterns: {
+                    javascript: '/<img[^>]+src="([^">]+)"/gi',
+                    python: 'r"<img[^>]+src=\"([^\">]+)\""',
+                    php: '/<img[^>]+src="([^">]+)"/i',
+                    java: '<img[^>]+src="([^">]+)"'
+                }
+            },
+            'chinese-chars': {
+                title: '中文字符提取',
+                category: '提取类',
+                description: '提取中文字符',
+                patterns: {
+                    javascript: '/[\\u4e00-\\u9fa5]/g',
+                    python: 'r"[\\u4e00-\\u9fa5]"',
+                    php: '/[\\x{4e00}-\\x{9fa5}]/u',
+                    java: '[\\u4e00-\\u9fa5]'
+                }
+            },
+            'numbers': {
+                title: '数字提取',
+                category: '提取类',
+                description: '提取字符串中的数字',
+                patterns: {
+                    javascript: '/\\d+(\\.\\d+)?/g',
+                    python: 'r"\\d+(\\.\\d+)?"',
+                    php: '/\\d+(\\.\\d+)?/',
+                    java: '\\d+(\\.\\d+)?'
+                }
+            },
+            'email-extract': {
+                title: '邮箱地址提取',
+                category: '提取类',
+                description: '提取文本中的邮箱地址',
+                patterns: {
+                    javascript: '/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g',
+                    python: 'r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"',
+                    php: '/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/',
+                    java: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}'
+                }
+            },
+            'color-hex': {
+                title: '颜色值提取',
+                category: '提取类',
+                description: '提取16进制颜色值，支持3位和6位格式',
+                patterns: {
+                    javascript: '/#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})/g',
+                    python: 'r"#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})"',
+                    php: '/#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})/i',
+                    java: '#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})'
+                }
+            },
+            'ip-extract': {
+                title: 'IP地址提取',
+                category: '提取类',
+                description: '提取IPv4地址',
+                patterns: {
+                    javascript: '/\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b/g',
+                    python: 'r"\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b"',
+                    php: '/\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b/',
+                    java: '\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b'
+                }
+            },
+            'link-extract': {
+                title: '链接提取',
+                category: '提取类',
+                description: '提取文本中的链接',
+                patterns: {
+                    javascript: '/https?:\\/\\/[^\\s]+/g',
+                    python: 'r"https?:\\/\\/[^\\s]+"',
+                    php: '/https?:\\/\\/[^\\s]+/g',
+                    java: 'https?:\\/\\/[^\\s]+'
+                }
+            },
+
+            // 替换类
+            'trim': {
+                title: '去除首尾空格',
+                category: '替换类',
+                description: '去除字符串首尾的空白字符',
+                patterns: {
+                    javascript: '/^\\s+|\\s+$/g',
+                    python: 'r"^\\s+|\\s+$"',
+                    php: '/^\\s+|\\s+$/',
+                    java: '^\\s+|\\s+$'
+                }
+            },
+            'remove-html': {
+                title: '去除HTML标签',
+                category: '替换类',
+                description: '去除文本中的HTML标签',
+                patterns: {
+                    javascript: '/<[^>]*>/g',
+                    python: 'r"<[^>]*>"',
+                    php: '/<[^>]*>/',
+                    java: '<[^>]*>'
+                }
+            },
+            'camelcase': {
+                title: '驼峰命名转换',
+                category: '替换类',
+                description: '将下划线命名转换为驼峰命名',
+                patterns: {
+                    javascript: '/_([a-z])/g',
+                    python: 'r"_([a-z])"',
+                    php: '/_([a-z])/',
+                    java: '_([a-z])'
+                }
+            },
+            'remove-script': {
+                title: '去除Script标签',
+                category: '替换类',
+                description: '去除HTML中的script标签及其内容',
+                patterns: {
+                    javascript: '/<script[^>]*>[\\s\\S]*?<\\/script>/gi',
+                    python: 'r"<script[^>]*>[\\s\\S]*?</script>"',
+                    php: '/<script[^>]*>[\\s\\S]*?<\\/script>/i',
+                    java: '<script[^>]*>[\\s\\S]*?</script>'
+                }
+            },
+            'remove-space': {
+                title: '去除多余空格',
+                category: '替换类',
+                description: '将多个连续空格替换为单个空格',
+                patterns: {
+                    javascript: '/\\s+/g',
+                    python: 'r"\\s+"',
+                    php: '/\\s+/',
+                    java: '\\s+'
+                }
+            },
+            'remove-comment': {
+                title: '去除注释',
+                category: '替换类',
+                description: '去除JavaScript单行和多行注释',
+                patterns: {
+                    javascript: '/\\/\\*[\\s\\S]*?\\*\\/|\\/\\/.*$/gm',
+                    python: 'r"#.*$"',
+                    php: '/\\/\\*[\\s\\S]*?\\*\\/|\\/\\/.*$/m',
+                    java: '\\/\\*[\\s\\S]*?\\*\\/|\\/\\/.*$'
+                }
+            },
+
+            // 格式化类
+            'money': {
+                title: '金额格式化',
+                category: '格式化类',
+                description: '匹配金额（保留两位小数）',
+                patterns: {
+                    javascript: '/^\\d+(?:\\.\\d{1,2})?$/',
+                    python: 'r"^\\d+(?:\\.\\d{1,2})?$"',
+                    php: '/^\\d+(?:\\.\\d{1,2})?$/',
+                    java: '^\\d+(?:\\.\\d{1,2})?$'
+                }
+            },
+            'phone-format': {
+                title: '手机号格式化',
+                category: '格式化类',
+                description: '匹配中国大陆手机号格式',
+                patterns: {
+                    javascript: '/^1[3-9]\\d{9}$/',
+                    python: 'r"^1[3-9]\\d{9}$"',
+                    php: '/^1[3-9]\\d{9}$/',
+                    java: '^1[3-9]\\d{9}$'
+                }
+            },
+            'date-format': {
+                title: '日期格式化',
+                category: '格式化类',
+                description: '匹配日期格式（YYYY-MM-DD）',
+                patterns: {
+                    javascript: '/^\\d{4}-\\d{2}-\\d{2}$/',
+                    python: 'r"^\\d{4}-\\d{2}-\\d{2}$"',
+                    php: '/^\\d{4}-\\d{2}-\\d{2}$/',
+                    java: '^\\d{4}-\\d{2}-\\d{2}$'
+                }
+            },
+            'card-format': {
+                title: '银行卡格式化',
+                category: '格式化类',
+                description: '匹配银行卡号（16或19位数字）',
+                patterns: {
+                    javascript: '/^\\d{16}|\\d{19}$/',
+                    python: 'r"^\\d{16}|\\d{19}$"',
+                    php: '/^\\d{16}|\\d{19}$/',
+                    java: '^\\d{16}|\\d{19}$'
+                }
+            },
+            'idcard-format': {
+                title: '身份证格式化',
+                category: '格式化类',
+                description: '匹配中国大陆18位身份证号',
+                patterns: {
+                    javascript: '/^[1-9]\\d{5}(19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[0-9Xx]$/',
+                    python: 'r"^[1-9]\\d{5}(19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[0-9Xx]$"',
+                    php: '/^[1-9]\\d{5}(19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[0-9Xx]$/',
+                    java: '^[1-9]\\d{5}(19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[0-9Xx]$'
+                }
+            },
+
+            // 特殊字符类
+            'emoji': {
+                title: 'Emoji表情',
+                category: '特殊字符类',
+                description: '匹配Emoji表情字符',
+                patterns: {
+                    javascript: '/[\\uD83C-\\uDBFF\\uDC00-\\uDFFF]+/g',
+                    python: 'r"[\\uD83C-\\uDBFF\\uDC00-\\uDFFF]"',
+                    php: '/[\\x{1F600}-\\x{1F64F}]/u',
+                    java: '[\\uD83C-\\uDBFF\\uDC00-\\uDFFF]'
+                }
+            },
+            'special-char': {
+                title: '特殊字符',
+                category: '特殊字符类',
+                description: '匹配特殊字符',
+                patterns: {
+                    javascript: '/[!@#$%^&*(),.?":{}|<>]/g',
+                    python: 'r"[!@#$%^&*(),.?\\":{}|<>]"',
+                    php: '/[!@#$%^&*(),.?":{}|<>]/',
+                    java: '[!@#$%^&*(),.?":{}|<>]'
+                }
+            }
+        };
+
+        // 初始化正则表达式列表
+        function initRegexList() {
+            const regexList = document.getElementById('regexList');
+            const languages = ['javascript', 'python', 'php', 'java'];
+            
+            // 清空列表
+            regexList.innerHTML = '';
+            
+            Object.keys(regexDatabase).forEach(key => {
+                const regex = regexDatabase[key];
+                
+                // 创建regex-item容器
+                const regexItem = document.createElement('div');
+                regexItem.className = 'regex-item';
+                regexItem.dataset.category = regex.category;
+                
+                // 创建regex-header
+                const regexHeader = document.createElement('div');
+                regexHeader.className = 'regex-header';
+                
+                // 创建regex-name
+                const regexName = document.createElement('div');
+                regexName.className = 'regex-name';
+                regexName.textContent = regex.title;
+                regexName.onclick = () => toggleRegexDetails(key);
+                regexHeader.appendChild(regexName);
+                
+                // 创建category标签
+                const categorySpan = document.createElement('span');
+                categorySpan.style.color = '#999';
+                categorySpan.style.fontSize = '12px';
+                categorySpan.textContent = regex.category;
+                regexHeader.appendChild(categorySpan);
+                
+                regexItem.appendChild(regexHeader);
+                
+                // 创建regex-pattern
+                const regexPattern = document.createElement('div');
+                regexPattern.className = 'regex-pattern';
+                regexPattern.textContent = regex.patterns.javascript;
+                regexPattern.onclick = () => copyPattern(key, 'javascript');
+                regexItem.appendChild(regexPattern);
+                
+                // 创建regex-description
+                const regexDescription = document.createElement('div');
+                regexDescription.className = 'regex-description';
+                regexDescription.textContent = regex.description;
+                regexItem.appendChild(regexDescription);
+                
+                // 创建regex-details
+                const regexDetails = document.createElement('div');
+                regexDetails.id = `details-${key}`;
+                regexDetails.className = 'regex-details';
+                
+                // 创建regex-language-tabs
+                const regexLanguageTabs = document.createElement('div');
+                regexLanguageTabs.className = 'regex-language-tabs';
+                
+                languages.forEach(lang => {
+                    const languageTab = document.createElement('button');
+                    languageTab.className = `language-tab ${lang === 'javascript' ? 'active' : ''}`;
+                    languageTab.dataset.regex = key;
+                    languageTab.dataset.language = lang;
+                    languageTab.textContent = lang.charAt(0).toUpperCase() + lang.slice(1);
+                    
+                    // 添加点击事件
+                    languageTab.addEventListener('click', () => {
+                        // 更新语言标签状态
+                        const tabs = regexItem.querySelectorAll('.language-tab');
+                        tabs.forEach(tab => tab.classList.remove('active'));
+                        languageTab.classList.add('active');
+                        
+                        // 更新显示的正则表达式
+                        const patterns = regexItem.querySelectorAll('.language-pattern');
+                        patterns.forEach(pattern => pattern.classList.remove('active'));
+                        const targetPattern = regexItem.querySelector(`#pattern-${key}-${lang}`);
+                        if (targetPattern) {
+                            targetPattern.classList.add('active');
+                        }
+                    });
+                    
+                    regexLanguageTabs.appendChild(languageTab);
+                });
+                
+                regexDetails.appendChild(regexLanguageTabs);
+                
+                // 创建language-patterns
+                const languagePatterns = document.createElement('div');
+                languagePatterns.className = 'language-patterns';
+                
+                languages.forEach(lang => {
+                    const languagePattern = document.createElement('div');
+                    languagePattern.id = `pattern-${key}-${lang}`;
+                    languagePattern.className = `language-pattern ${lang === 'javascript' ? 'active' : ''}`;
+                    languagePattern.textContent = regex.patterns[lang];
+                    languagePattern.onclick = () => copyPattern(key, lang);
+                    languagePatterns.appendChild(languagePattern);
+                });
+                
+                regexDetails.appendChild(languagePatterns);
+                
+                regexItem.appendChild(regexDetails);
+                regexList.appendChild(regexItem);
+            });
+        }
+        
+        // 切换正则表达式详情
+        function toggleRegexDetails(key) {
+            const details = document.getElementById(`details-${key}`);
+            if (details) {
+                details.classList.toggle('expanded');
+            }
+        }
+        
+        // 复制正则表达式
+        function copyPattern(key, language) {
+            const pattern = regexDatabase[key].patterns[language];
+            const copyMessage = document.getElementById('copy-message');
+            
+            navigator.clipboard.writeText(pattern).then(() => {
+                // 显示复制成功消息
+                copyMessage.textContent = '已复制到剪贴板！';
+                copyMessage.className = 'message success';
+                copyMessage.style.opacity = '1';
+                
+                // 3秒后隐藏消息
+                setTimeout(() => {
+                    copyMessage.style.opacity = '0';
+                }, 3000);
+            }).catch(() => {
+                copyMessage.textContent = '复制失败，请手动复制';
+                copyMessage.className = 'message error';
+                copyMessage.style.opacity = '1';
+                
+                setTimeout(() => {
+                    copyMessage.style.opacity = '0';
+                }, 3000);
+            });
+        }
+        
+        // 分类筛选
+        function filterByCategory(category) {
+            const regexItems = document.querySelectorAll('.regex-item');
+            
+            regexItems.forEach(item => {
+                if (category === 'all' || item.dataset.category === category) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            
+            // 更新活跃分类按钮
+            const categoryBtns = document.querySelectorAll('.category-btn');
+            categoryBtns.forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            const activeBtn = document.querySelector(`[data-category="${category}"]`);
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+            }
+        }
+        
+        // 搜索功能
+        function searchRegex() {
+            const searchTerm = document.getElementById('regexSearch').value.toLowerCase();
+            const regexItems = document.querySelectorAll('.regex-item');
+            const categoryBtns = document.querySelectorAll('.category-btn');
+            const activeCategory = document.querySelector('.category-btn.active').dataset.category;
+            
+            regexItems.forEach(item => {
+                const title = item.querySelector('.regex-name').textContent.toLowerCase();
+                const description = item.querySelector('.regex-description').textContent.toLowerCase();
+                const categoryMatch = activeCategory === 'all' || item.dataset.category === activeCategory;
+                const searchMatch = title.includes(searchTerm) || description.includes(searchTerm);
+                
+                if (categoryMatch && searchMatch) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+        
+        // 正则表达式测试功能
+        function testRegex() {
+            const regexInput = document.getElementById('testRegex').value;
+            const flagsInput = document.getElementById('testFlags').value;
+            const testText = document.getElementById('testText').value;
+            const testResult = document.getElementById('testResult');
+            
+            if (!regexInput) {
+                testResult.className = 'test-result empty';
+                testResult.innerHTML = '<p>请输入正则表达式</p>';
+                return;
+            }
+            
+            try {
+                const regex = new RegExp(regexInput, flagsInput);
+                const matches = testText.match(regex);
+                
+                if (matches) {
+                    testResult.className = 'test-result success';
+                    testResult.innerHTML = `
+                        <div class="result-count">找到 ${matches.length} 个匹配项：</div>
+                        <div class="result-list">
+                            ${matches.map(match => `<div class="result-item">${match}</div>`).join('')}
+                        </div>
+                    `;
+                } else {
+                    testResult.className = 'test-result empty';
+                    testResult.innerHTML = '<p>没有找到匹配项</p>';
+                }
+            } catch (error) {
+                testResult.className = 'test-result error';
+                testResult.innerHTML = `<p>正则表达式错误：${error.message}</p>`;
+            }
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('DOMContentLoaded', () => {
+            initRegexList();
+            
+            // 绑定分类筛选事件
+            const categoryBtns = document.querySelectorAll('.category-btn');
+            categoryBtns.forEach(btn => {
+                btn.addEventListener('click', () => filterByCategory(btn.dataset.category));
+            });
+            
+            // 绑定搜索事件
+            const searchInput = document.getElementById('regexSearch');
+            searchInput.addEventListener('input', searchRegex);
+            
+            // 绑定测试事件
+            const testBtn = document.getElementById('testBtn');
+            if (testBtn) {
+                testBtn.addEventListener('click', testRegex);
+            }
+            
+            // 实时测试
+            const testRegexInput = document.getElementById('testRegex');
+            const testFlagsInput = document.getElementById('testFlags');
+            const testTextArea = document.getElementById('testText');
+            
+            [testRegexInput, testFlagsInput, testTextArea].forEach(input => {
+                input.addEventListener('input', () => {
+                    if (testRegexInput.value && testTextArea.value) {
+                        testRegex();
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
