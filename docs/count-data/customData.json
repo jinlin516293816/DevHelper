@@ -1,11 +1,30 @@
 [
+       {
+          "lotteryTime": "2026年01月20日",
+          "isSibuxiang": false,
+          "isZhutu": false,
+          "isTu2": false,
+          "isTu3": true,
+          "isAnma": false,
+          "isJinnang": true
+    },
+    {
+          "lotteryTime": "2026年01月17日",
+          "isSibuxiang": false,
+          "isZhutu": false,
+          "isTu2": false,
+          "isTu3": false,
+          "isAnma": false,
+          "isJinnang": true
+    },
     {
           "lotteryTime": "2026年01月16日",
           "isSibuxiang": false,
           "isZhutu": true,
           "isTu2": false,
           "isTu3": false,
-          "isAnma": false
+          "isAnma": false,
+          "isJinnang": false
     },
     {
           "lotteryTime": "2026年01月12日",
@@ -13,7 +32,8 @@
           "isZhutu": true,
           "isTu2": false,
           "isTu3": false,
-          "isAnma": false
+          "isAnma": false,
+          "isJinnang": false
     },
     {
           "lotteryTime": "2026年01月11日",
@@ -21,6 +41,7 @@
           "isZhutu": true,
           "isTu2": false,
           "isTu3": false,
-          "isAnma": false
+          "isAnma": false,
+          "isJinnang": false
     }
 ]
