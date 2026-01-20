@@ -1,0 +1,26 @@
+[
+    {
+          "lotteryTime": "2026年01月16日",
+          "isSibuxiang": false,
+          "isZhutu": true,
+          "isTu2": false,
+          "isTu3": false,
+          "isAnma": false
+    },
+    {
+          "lotteryTime": "2026年01月12日",
+          "isSibuxiang": false,
+          "isZhutu": true,
+          "isTu2": false,
+          "isTu3": false,
+          "isAnma": false
+    },
+    {
+          "lotteryTime": "2026年01月11日",
+          "isSibuxiang": false,
+          "isZhutu": true,
+          "isTu2": false,
+          "isTu3": false,
+          "isAnma": false
+    }
+]
