@@ -1,1 +1,0 @@
-import{_ as e,o as t,c as a}from"./chunks/framework.CKBQxVg8.js";const m=JSON.parse('{"title":"","description":"","frontmatter":{"layout":"NoAccess"},"headers":[],"relativePath":"noaccess/index.md","filePath":"noaccess/index.md"}'),s={name:"noaccess/index.md"};function c(n,o,r,d,i,p){return t(),a("div")}const f=e(s,[["render",c]]);export{m as __pageData,f as default};
